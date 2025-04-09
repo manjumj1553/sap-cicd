@@ -1,0 +1,24 @@
+---
+- name: wait for crm and autofs to become stable
+  wait_for:
+    timeout: 120
+
+- name: ensure autofs is running
+  command: systemctl status autofs
+  failed_when: false
+  changed_when: false
+  register: autofs_status
+  when: sap_is_scs | bool
+
+- debug:
+    var: autofs_status
+  when: sap_is_scs | bool
+
+- name: cleanup stopped and failed crm resources
+  shell: |
+    crm resource cleanup
+  when: ansible_os_family == "Suse"
+
+- name: wait for crm and autofs to become stable
+  wait_for:
+    timeout: 120

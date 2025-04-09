@@ -1,0 +1,73 @@
+# Required variables
+primary_sap_aas_instance_name: uscsltaas01    # Prod Webdispatcher Instance Name
+primary_sap_aas_zone: us-central1-a           # Prod Webdispatcher Zone
+primary_sap_project_id: sap-iac-test
+# Primary NFS using one server, for example when using Cloud FileStore.
+primary_sap_nw_nfs_src: 10.167.224.4:/paypalvol1/SLT
+
+sap_project_id: sap-iac-test
+sap_nw_subnetwork: db-central 
+sap_subnetwork_project_id: sap-iac-test
+sap_tf_state_bucket: sap-terraform-state-bg-mj
+sap_tf_state_bucket_prefix: DR-NWSTANDARD-AAS-LITE-20250323
+
+
+sap_nw_dr_aas_region: us-central1
+sap_nw_dr_aas_zone: us-central1-f
+sap_nw_dr_aas_instance_name:
+  - uscdrsltaas
+sap_nw_dr_aas_instance_ip:
+  - 10.5.0.44
+sap_nw_dr_aas_instance_type: n2-standard-4
+sap_nw_dr_aas_use_public_ip: false         # Do not modify
+# Disk configuration
+sap_nw_dr_aas_boot_disk_size: 20
+sap_nw_dr_aas_boot_disk_type: pd-ssd
+# Delete boot disks automatically.
+sap_nw_dr_aas_autodelete_boot_disk: true   # Do not modify
+sap_nw_dr_aas_usrsap_disk_size: 10
+sap_nw_dr_aas_swap_disk_size: 2
+sap_nw_dr_aas_usrsap_disk_type: pd-ssd
+sap_nw_dr_aas_swap_disk_type: pd-ssd
+sap_nw_dr_aas_service_account_email: 811811474621-compute@developer.gserviceaccount.com 
+sap_nw_dr_network_tags: ["sap-allow-all"]
+sap_nw_dr_aas_pd_kms_key: 'projects/sap-iac-test/locations/global/keyRings/paypal-ring/cryptoKeys/paypal-key'
+sap_nw_dr_aas_labels: 
+  app: nw
+sap_nw_dr_aas_alias_ip:
+  - 10.5.0.45
+
+sap_nw_aas_virtual_host: uscsltaasvip
+
+sap_ssh_user: mahekar
+sap_host_fqdn: "paypal.com"
+sap_system_type: "nw"
+sap_nw_ascs_instance_number: "01"
+sap_nw_pas_instance_number: "00"
+sap_hana_instance_number: "00"
+
+sap_hana_virtual_host: usch8phdb
+sap_hana_instance_ip: 10.5.0.35
+sap_nw_ascs_alias_ip: 10.5.0.36
+sap_nw_ascs_virtual_host: uscsltascsvip
+sap_nw_pas_alias_ip: 10.5.0.37
+sap_nw_pas_virtual_host: uscsltpasvip
+
+sap_nw_install_files_bucket: sap-deployment-media
+sap_nw_gsm_secret_id: hana_default_pass
+sap_nw_sid: SLT
+sap_hana_sid: H8P
+sap_sapinst_nw: true
+
+sap_nw_daaadm_uid: 98
+sap_nw_sidadm_uid: 2000
+sap_nw_sapadm_uid: 2001
+sap_sapsys_gid: 2626
+
+sap_hana_backint_install: false
+sap_nw_product_and_version: 'NetWeaver/750'
+# NFS using one server, for example when using Cloud FileStore.
+sap_nw_nfs_src: 10.167.224.4:/paypalvol1/SDR
+sap_hana_password: Paypal12345
+sap_nw_password: Paypal12345
+sap_daa_adm_password: Paypal12345

@@ -1,0 +1,37 @@
+- block:
+  - name: Saptune configuration for HANA on Redhat
+    shell: |
+      yum -y install tuned
+      yum -y install tuned-profiles-sap-hana
+      yum -y install google-cloud-ops-agent
+      systemctl start tuned
+      systemctl enable tuned
+      tuned-adm profile sap-hana
+    when: ('hana' in groups)
+
+  - name: Saptune configuration for NW on Redhat 
+    shell: |
+      yum -y install tuned
+      yum -y install google-cloud-ops-agent
+      systemctl start tuned
+      systemctl enable tuned
+      # tuned-adm profile sap-netweaver
+    when: ('nw' in groups)
+  when: |
+    ansible_os_family == 'RedHat'
+
+- block:
+  - name: Saptune configuration for HANA on SLES
+    shell: |
+      systemctl start google-cloud-sap-agent
+      systemctl enable google-cloud-sap-agent
+      saptune service takeover
+      saptune solution apply S4HANA-DBSERVER
+    when: ('hana' in groups) 
+
+  - name: Saptune configuration for NW on SLES 
+    shell: |
+      saptune solution apply MAXDB S4HANA-APPSERVER
+    when: ('nw' in groups)
+  when: |
+    ansible_os_family == 'Suse'

@@ -1,0 +1,74 @@
+SAPSYSTEMNAME = AP2
+SAPSYSTEM = 00
+INSTANCE_NAME = J00
+DIR_CT_RUN = $(DIR_EXE_ROOT)$(DIR_SEP)$(OS_UNICODE)$(DIR_SEP)linuxx86_64
+DIR_EXECUTABLE = $(DIR_INSTANCE)/exe
+SAPLOCALHOST = ap2sapjav01
+DIR_PROFILE = $(DIR_INSTALL)$(DIR_SEP)profile
+_PF = $(DIR_PROFILE)/AP2_J00_ap2sapjav01
+SETENV_00 = DIR_LIBRARY=$(DIR_LIBRARY)
+SETENV_01 = LD_LIBRARY_PATH=$(DIR_LIBRARY):%(LD_LIBRARY_PATH)
+SETENV_02 = SHLIB_PATH=$(DIR_LIBRARY):%(SHLIB_PATH)
+SETENV_03 = LIBPATH=$(DIR_LIBRARY):%(LIBPATH)
+SETENV_04 = PATH=$(DIR_EXECUTABLE):%(PATH)
+#-----------------------------------------------------------------------
+# Copy SAP Executables
+#-----------------------------------------------------------------------
+_CPARG0 = list:$(DIR_CT_RUN)/j2eeinst.lst
+Execute_00 = immediate $(DIR_CT_RUN)/sapcpe$(FT_EXE) pf=$(_PF) $(_CPARG0)
+_CPARG1 = list:$(DIR_CT_RUN)/igsexe.lst
+Execute_01 = immediate $(DIR_CT_RUN)/sapcpe$(FT_EXE) pf=$(_PF) $(_CPARG1)
+_CPARG2 = list:$(DIR_CT_SAPJVM)/sapjvm_8.lst
+_CPARG3 = source:$(DIR_CT_SAPJVM)
+Execute_02 = immediate $(DIR_CT_RUN)/sapcpe$(FT_EXE) pf=$(_PF) $(_CPARG2) $(_CPARG3)
+_CPARG4 = list:$(DIR_GLOBAL)/bootstrap/bootstrap.lst
+_CPARG5 = source:$(DIR_GLOBAL)/bootstrap
+_CPARG6 = target:$(DIR_INSTANCE)/j2ee/cluster/bootstrap
+Execute_03 = immediate $(DIR_CT_RUN)/sapcpe$(FT_EXE) pf=$(_PF) $(_CPARG4) $(_CPARG5) $(_CPARG6)
+SETENV_05 = SECUDIR=$(DIR_INSTANCE)/sec
+_CPARG7 = list:$(DIR_CT_RUN)/sapcrypto.lst
+Execute_04 = immediate $(DIR_CT_RUN)/sapcpe$(FT_EXE) pf=$(_PF) $(_CPARG7)
+_CPARG8 = list:$(DIR_GLOBAL)/bootstrap/bootstrap.lst
+_CPARG9 = source:$(DIR_GLOBAL)/bootstrap
+_CPARG10 = target:$(DIR_INSTANCE)/j2ee/cluster/bootstrap
+Execute_05 = immediate $(DIR_CT_RUN)/sapcpe$(FT_EXE) pf=$(_PF) $(_CPARG8) $(_CPARG9) $(_CPARG10)
+jstartup/trimming_properties = off
+jstartup/max_caches = 500
+j2ee/dbdriver = /usr/sap/AP2/hdbclient/ngdbc.jar
+igs/listener/rfc/disable = 1
+SAPJVM_VERSION = 8.1.082
+DIR_SAPJVM = $(DIR_EXECUTABLE)$(DIR_SEP)sapjvm_8
+jstartup/vm/home = $(DIR_SAPJVM)
+exe/saposcol = $(DIR_CT_RUN)/saposcol
+#-----------------------------------------------------------------------
+# Start Java application server
+#-----------------------------------------------------------------------
+_JC = $(rdisp/workdir)/jc.sap$(SAPSYSTEMNAME)_$(INSTANCE_NAME)
+Execute_06 = local rm -f $(_JC)
+Execute_07 = local ln -s -f $(DIR_EXECUTABLE)/jstart$(FT_EXE) $(_JC)
+Start_Program_00 = local $(_JC) pf=$(_PF)
+#-----------------------------------------------------------------------
+# Start internet graphics server
+#-----------------------------------------------------------------------
+_IG = ig.sap$(SAPSYSTEMNAME)_$(INSTANCE_NAME)
+Execute_08 = local rm -f $(_IG)
+Execute_09 = local ln -s -f $(DIR_EXECUTABLE)/igswd_mt $(_IG)
+Start_Program_01 = local $(_IG) -mode=profile pf=$(_PF)
+j2ee/instance_id = ID13254
+#---------------------------------------------------------------------
+#ICM Parameter for HTTPS
+#--------------------------------------------------------------------
+jstartup/service_acl = service:*; library:*; interface:*; sap.com*; com.sap*
+icm/HTTP/logging_00 = PREFIX=/, LOGFILE=icmhttph.log, FILTER=SAPSMD, LOGFORMAT=SAPSMD2, MAXSIZEKB=10240,FILEWRAP=on, SWITCHTF=month
+icm/HTTP/logging_client_00 = PREFIX=/, LOGFILE=icmhttpclnt.log, FILTER=SAPSMD, LOGFORMAT=SAPSMD2, MAXSIZEKB=10240,FILEWRAP=on, SWITCHTF=month
+
+###ICM Port Configuration#####
+
+icm/server_port_1 = PROT=HTTPS, PORT=50001, SSLCONFIG=ssl_config_1, ACLFILE=/sapmnt/AP2/profile/ACL/acl.admin_access
+icm/ssl_config_1 = VCLIENT=0, CRED=/usr/sap/AP2/J00/sec/sapmes_prod.pse
+icm/server_port_2 = PROT=HTTPS, PORT=50002, TIMEOUT=60, PROCTIMEOUT=600, SSLCONFIG=ssl_config_2, ACLFILE=/sapmnt/AP2/profile/ACL/acl.admin_access
+icm/ssl_config_2 = VCLIENT=1, CRED=/usr/sap/AP2/J00/sec/sapmes_prod.pse
+icm/server_port_3 = PROT=P4, PORT=50004, ACLFILE=/sapmnt/AP2/profile/ACL/acl.admin_access
+icm/server_port_4 = PROT=IIOP, PORT=50007, ACLFILE=/sapmnt/AP2/profile/ACL/acl.admin_access
+icm/server_port_7 = PROT=P4SEC, PORT=50006,ACLFILE=/sapmnt/AP2/profile/ACL/acl.admin_access
+Autostart = 0

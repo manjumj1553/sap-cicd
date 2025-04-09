@@ -1,0 +1,137 @@
+###############################################################################################################################################################
+#                                                                                                                                                             #
+# Installation service 'Generic Options > Diagnostics in SAP Solution Manager > Install - Diagnostics Agent', product id 'NW_DiagnosticsAgent:GENERIC.IND.PD' #
+#                                                                                                                                                             #
+###############################################################################################################################################################
+# IMPORTANT DO NOT DELETE!!! SAPInstDes25Hash=$pH5AjzKlu+Ik$a1BybPlELDdDJvOfaq8e6a0jiMXD1pqSk3XGVsKiwKVCoB1TQvqlcLHJlZTRH7Ol5IyR/O7+uvQ96a2natUhqc0cy7Hj/hT0
+
+# The destination ASP where the Diagnostics Agent must be installed. 
+# This is an optional property. The property is IBM i only. Values from 1 to 256 can be specified.
+# DiagnosticsAgent.DestinationASP = 
+
+# The destination drive where the Diagnostics Agent must be installed. 
+# This is an optional property. The property is Microsoft Windows only. The pattern to use is "[A-Z]:".
+# DiagnosticsAgent.DestinationDrive = 
+
+# The instance number for the Diagnostics Agent. The pattern to use is "[0-9][0-9]".
+DiagnosticsAgent.InstanceNumber = {{ sap_nw_daa_instance_number }}
+
+# The name of the logical host on which the Diagnostics Agent must be installed. 
+# This is an optional property. Only specify a value if you are sure the Diagnostics Agent must be installed on this logical host. 
+# Using this property is in conflict with the Agents On-the-fly concept.
+DiagnosticsAgent.LogicalHostName = {{ ansible_hostname }}
+
+# Provide the version of the SAP JVM. The values are either SAPJVM6 or SAPJVM8.
+DiagnosticsAgent.SAPJVMVersion = {{ sap_daa_jvm_version }}
+
+# SAProuter password for the connection between the Diagnostics Agent and the SAP Solution Manager system.
+# DiagnosticsAgent.SAProuter.Password = 
+
+# SAProuter route string for the connection between the Diagnostics Agent and the SAP Solution Manager system.
+# DiagnosticsAgent.SAProuter.RouteString = 
+
+# The System ID (SID) for the Diagnostics Agent. The pattern to use is "[A-Z][A-Z0-9][A-Z0-9]".
+DiagnosticsAgent.SID = DAA
+
+# Specify if a connection to the System Landscape Directory (SLD) should be configured or not.
+# Possible values are "sld" or "no" (without quotes).
+DiagnosticsAgent.SLD.Connection = no
+
+# The host name where the SLD is installed.
+# DiagnosticsAgent.SLD.HostName = 
+
+# The password for the SLD registration.
+# DiagnosticsAgent.SLD.Password = 
+
+# The port number where the SLD can be reached.
+# DiagnosticsAgent.SLD.PortNumber = 
+
+# Specify if the SLD registration uses an HTTPS connection or not. 
+# Possible values are "true" or "false" (without quotes).
+# DiagnosticsAgent.SLD.UseHTTPS = 
+
+# The user for the SLD registration.
+# DiagnosticsAgent.SLD.UserName = 
+
+# Specify if a connection to the SAP Solution Manager system should be configured or not. 
+# Possible values are "solman" or "none" (without quotes).
+DiagnosticsAgent.SolMan.Connection = none
+
+# The host name where the SAP Solution Manager system is installed.
+# DiagnosticsAgent.SolMan.HostName = 
+
+# The password for the SAP Solution Manager registration.
+# DiagnosticsAgent.SolMan.Password = 
+
+# The port number where the SAP Solution Manager system can be reached.
+# DiagnosticsAgent.SolMan.PortNumber = 
+
+# Specify if the SAP Solution Manager registration uses an SSL connection or not.
+# Possible values are "true" or "false" (without quotes).
+DiagnosticsAgent.SolMan.UseSSL = false
+
+# The user for the SAP Solution Manager registration.
+# DiagnosticsAgent.SolMan.UserName = 
+
+# Password for the Diagnostics Agent specific <dasid>adm user. Provided value may be encoded.
+DiagnosticsAgent.dasidAdmPassword = {{ sap_daa_adm_password }}
+
+# Windows domain in which the Diagnostics Agent users must be created. This is an optional property (Windows only).
+# DiagnosticsAgent.domain = 
+
+# SAP INTERNAL USE ONLY
+DiagnosticsAgent.installSAPHostAgent = false
+
+# Windows only: Password for the Diagnostics Agent specific 'SAPService<DASID>' user.
+# DiagnosticsAgent.sapServiceDASIDPassword = 
+
+# DEPRECATED, DO NOT USE!
+# NW_SAPCrypto.SAPCryptoFile = 
+
+# DEPRECATED, DO NOT USE!
+# NW_Unpack.dbaToolsSar = 
+
+# DEPRECATED, DO NOT USE!
+# NW_Unpack.igsExeSar = 
+
+# DEPRECATED, DO NOT USE!
+# NW_Unpack.igsHelperSar = 
+
+# DEPRECATED, DO NOT USE!
+# NW_Unpack.sapExeDbSar = 
+
+# DEPRECATED, DO NOT USE!
+NW_Unpack.sapExeSar = {{ sap_nw_kernel_files }}/{{ sap_daa_sar_file_name }}
+
+# DEPRECATED, DO NOT USE!
+# NW_Unpack.sapJvmSar = 
+
+# DEPRECATED, DO NOT USE!
+# NW_Unpack.xs2Sar = 
+
+# The folder containing all archives that have been downloaded from http://support.sap.com/swdc and are supposed to be used in this procedure
+archives.downloadBasket = {{ sap_nw_kernel_files }}
+
+# Windows only: The domain of the SAP Host Agent user
+# hostAgent.domain = 
+
+# Password for the 'sapadm' user of the SAP Host Agent
+# hostAgent.sapAdmPassword = 
+
+# Windows only: The domain of all users of this SAP system. Leave empty for default.
+# nwUsers.sapDomain = 
+
+# Windows only: The password of the 'SAPServiceSID' user
+# nwUsers.sapServiceSIDPassword = 
+
+# UNIX only: The user ID of the 'sapadm' user, leave empty for default. The ID is ignored if the user already exists.
+nwUsers.sapadmUID = {{ sap_nw_sapadm_uid }}
+
+# UNIX only: The group id of the 'sapsys' group, leave empty for default. The ID is ignored if the group already exists.
+nwUsers.sapsysGID = {{ sap_nw_sapsys_gid }}
+
+# UNIX only: The user id of the <sapsid>adm user, leave empty for default. The ID is ignored if the user already exists.
+nwUsers.sidAdmUID = {{ sap_nw_daaadm_uid }}
+
+# The password of the '<sapsid>adm' user
+# nwUsers.sidadmPassword = 

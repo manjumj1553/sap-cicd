@@ -1,0 +1,181 @@
+# Copyright 2021 Google LLC
+#
+# Licensed under the Apache License, Version 2.0 (the "License");
+# you may not use this file except in compliance with the License.
+# You may obtain a copy of the License at
+#
+#     https://www.apache.org/licenses/LICENSE-2.0
+#
+# Unless required by applicable law or agreed to in writing, software
+# distributed under the License is distributed on an "AS IS" BASIS,
+# WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+# See the License for the specific language governing permissions and
+# limitations under the License.
+
+- block:
+  - name: create healthcheck service
+    command: >-
+      crm -F configure primitive rsc_healthcheck-{{ sap_vip_purpose }} anything
+      params binfile=/usr/bin/socat
+      cmdline_options="-U TCP-LISTEN:{{ sap_health_check_port }},backlog=10,fork,reuseaddr /dev/null"
+      op monitor timeout=20s interval=10
+      op_params depth=0
+    when: sap_use_lb
+    register: crm_command_status
+    changed_when: crm_command_status.rc == 0
+    failed_when:
+    - crm_command_status.rc != 0 and 'Found existing' not in crm_command_status.stderr
+    - crm_command_status.rc != 0 and 'violate uniqueness for parameter "binfile"' not in crm_command_status.stderr
+
+  - name: create gcp alias resource
+    command: >-
+      crm -F configure primitive rsc_vip_gcp-{{ sap_vip_purpose }} ocf:gcp:alias
+      op monitor interval=60s timeout=60s
+      op start interval=0 timeout=300s
+      op stop interval=0 timeout=15s params
+      alias_ip={{ sap_vip }}/32 hostlist="{{ sap_primary_instance }} {{ sap_secondary_instance }}"
+      gcloud_path={{ sap_gcloud_path }} logging=yes meta priority=10
+    when: not sap_use_lb
+    register: crm_command_status
+    changed_when: crm_command_status.rc == 0
+    failed_when:
+    - crm_command_status.rc != 0 and 'Found existing' not in crm_command_status.stderr
+    - crm_command_status.rc != 0 and 'violate uniqueness for parameter' not in crm_command_status.stderr
+
+  - name: create ipaddr2 resource
+    command: >-
+      crm configure primitive rsc_vip_int-{{ sap_vip_purpose }} IPaddr2
+      params ip={{ sap_vip }} cidr_netmask=32 nic="eth0"
+      op monitor interval=3600s timeout=60s
+    register: crm_command_status
+    changed_when: crm_command_status.rc == 0
+    failed_when: |
+      crm_command_status.rc != 0 and 'Found existing' not in crm_command_status.stderr
+
+  - name: create ascs filesystem for ABAP
+    command: >-
+      crm configure primitive ascs_fs_{{ sap_nw_sid }} Filesystem
+      device={{ sap_nw_nfs_src }}/ASCS{{ sap_nw_ascs_instance_number }}
+      directory=/usr/sap/{{ sap_nw_sid }}/ASCS{{ sap_nw_ascs_instance_number }} fstype="nfs"
+      options="rw,hard,rsize=65536,wsize=65536,vers=3,tcp"
+      op start timeout=60s interval=0
+      op stop timeout=60s interval=0
+      op monitor interval=20s timeout=40s
+    when: 
+      - sap_system_type == "nw"
+      - sap_scs_name == "ASCS" 
+    register: ascs_command_status
+    changed_when: ascs_command_status.rc == 0
+    failed_when: ascs_command_status.rc != 0 and 'Found existing primitive' not in ascs_command_status.stderr
+
+  - name: create scs filesystem for JAVA
+    command: >-
+      crm configure primitive ascs_fs_{{ sap_nw_sid }} Filesystem
+      device={{ sap_nw_nfs_src }}/SCS{{ sap_nw_ascs_instance_number }}
+      directory=/usr/sap/{{ sap_nw_sid }}/SCS{{ sap_nw_ascs_instance_number }} fstype="nfs"
+      options="rw,hard,rsize=65536,wsize=65536,vers=3,tcp"
+      op start timeout=60s interval=0
+      op stop timeout=60s interval=0
+      op monitor interval=20s timeout=40s
+    when: 
+      - sap_system_type == "nw"
+      - sap_scs_name == "SCS" 
+    register: ascs_command_status
+    changed_when: ascs_command_status.rc == 0
+    failed_when: ascs_command_status.rc != 0 and 'Found existing primitive' not in ascs_command_status.stderr
+
+  - name: create ers filesystem
+    command: >-
+      crm configure primitive ers_fs_{{ sap_nw_sid }} Filesystem
+      device={{ sap_nw_nfs_src }}/ERS{{ sap_nw_ers_instance_number }}
+      directory=/usr/sap/{{ sap_nw_sid }}/ERS{{ sap_nw_ers_instance_number }} fstype="nfs"
+      options="rw,hard,rsize=65536,wsize=65536,vers=3,tcp"
+      op start timeout=60s interval=0
+      op stop timeout=60s interval=0
+      op monitor interval=20s timeout=40s
+    when: sap_system_type == "nw"
+    register: ers_command_status
+    changed_when: ers_command_status.rc == 0
+    failed_when: ers_command_status.rc != 0 and 'Found existing primitive' not in ers_command_status.stderr
+
+  - name: group vip resources
+    command: >-
+      crm configure group g-{{ sap_vip_purpose }} rsc_vip_int-{{ sap_vip_purpose }} rsc_vip_gcp-{{ sap_vip_purpose }}
+    register: crm_command_status
+    changed_when: crm_command_status.rc == 0
+    failed_when: |
+      crm_command_status.rc != 0 and 'Found existing' not in crm_command_status.stderr
+    when: not sap_use_lb
+
+  - name: group vip resources
+    command: >-
+      crm configure group g-{{ sap_vip_purpose }} rsc_vip_int-{{ sap_vip_purpose }} rsc_healthcheck-{{ sap_vip_purpose }}
+    register: crm_command_status
+    changed_when: crm_command_status.rc == 0
+    failed_when: |
+      crm_command_status.rc != 0 and 'Found existing' not in crm_command_status.stderr
+    when: sap_use_lb
+  when:
+    ansible_os_family == 'Suse'
+
+- block:
+  - name: create ipaddr2 resource
+    command: >-
+      pcs resource create rsc_vip_int-{{ sap_vip_purpose }} IPaddr2
+      nic=ens4 ip={{ sap_vip }} cidr_netmask=32 op monitor interval=3600s timeout=60s
+    when: sap_system_type == "hana"
+    register: pcs_command_status
+    changed_when: pcs_command_status.rc == 0
+    failed_when: pcs_command_status.rc != 0 and 'already exists' not in pcs_command_status.stderr
+
+  - name: create healthcheck service
+    command: |
+      pcs resource create rsc_healthcheck-{{ sap_vip_purpose }} service:haproxy
+      op monitor interval=10s timeout=20s
+    when: sap_system_type == "hana"
+    register: pcs_command_status
+    changed_when: pcs_command_status.rc == 0
+    failed_when: pcs_command_status.rc != 0 and 'already exists' not in pcs_command_status.stderr
+
+  - name: create ipaddr2 resource
+    command: >-
+      pcs resource create rsc_vip_int-{{ sap_vip_purpose }} IPaddr2
+      nic=ens4 ip={{ sap_vip }} cidr_netmask=32 op monitor interval=3600s timeout=60s --group g-{{ sap_vip_purpose }}
+    when: sap_system_type == "nw"
+    register: pcs_command_status
+    changed_when: pcs_command_status.rc == 0
+    failed_when: pcs_command_status.rc != 0 and 'already exists' not in pcs_command_status.stderr
+
+  - name: create healthcheck service
+    command: |
+      pcs resource create rsc_healthcheck-{{ sap_vip_purpose }} service:haproxy@{{ sap_nw_sid|lower }}{{ sap_vip_purpose }}
+      op monitor interval=10s timeout=20s --group g-{{ sap_vip_purpose }}
+    when: sap_system_type == "nw"
+    register: pcs_command_status
+    changed_when: pcs_command_status.rc == 0
+    failed_when: pcs_command_status.rc != 0 and 'already exists' not in pcs_command_status.stderr
+
+  - name: create ascs filesystem
+    command: |
+      pcs resource create rsc_fs-{{ sap_vip_purpose }} Filesystem
+      device="{{ sap_nw_ascs_nfs_mount_src }}" directory="{{ sap_nw_ascs_nfs_mount_dest }}"
+      fstype=nfs force_unmount=safe --group g-{{ sap_vip_purpose }} op start interval=0
+      timeout=60 op stop interval=0 timeout=120 op monitor interval=200 timeout=40
+    when: ( sap_use_lb |bool) and ( sap_system_type == "nw" )
+    register: pcs_command_status
+    changed_when: pcs_command_status.rc == 0
+    failed_when: pcs_command_status.rc != 0 and 'already exist' not in pcs_command_status.stderr
+
+  - name: create ers filesystem
+    command: |
+      pcs resource create rsc_fs-{{ sap_vip_purpose }} Filesystem
+      device="{{ sap_nw_ers_nfs_mount_src }}" directory="{{ sap_nw_ers_nfs_mount_dest }}"
+      fstype=nfs force_unmount=safe --group g-{{ sap_vip_purpose }} op start interval=0
+      timeout=60 op stop interval=0 timeout=120 op monitor interval=200 timeout=40
+    when: not ( sap_use_lb |bool) and ( sap_system_type == "nw" )
+    register: pcs_command_status
+    changed_when: pcs_command_status.rc == 0
+    failed_when: pcs_command_status.rc != 0 and 'already exist' not in pcs_command_status.stderr
+
+  when:
+    ansible_os_family == 'RedHat'

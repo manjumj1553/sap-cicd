@@ -1,0 +1,81 @@
+# Copyright 2021 Google LLC
+#
+# Licensed under the Apache License, Version 2.0 (the "License");
+# you may not use this file except in compliance with the License.
+# You may obtain a copy of the License at
+#
+#     https://www.apache.org/licenses/LICENSE-2.0
+#
+# Unless required by applicable law or agreed to in writing, software
+# distributed under the License is distributed on an "AS IS" BASIS,
+# WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+# See the License for the specific language governing permissions and
+# limitations under the License.
+
+- block:
+  - command: >-
+      crm configure get_property stonith-enabled
+    register: crm_command_status_stonith
+    changed_when: false
+
+  - name: configure stonith
+    command: >-
+      crm configure property stonith-enabled=true
+    when: crm_command_status_stonith.stdout != 'true'
+
+  - command: >-
+      crm configure get_property stonith-timeout
+    register: crm_command_status_stonith_time
+    changed_when: false
+
+  - name: configure stonith timeout
+    command: >-
+      crm configure property stonith-timeout=300s
+    when: crm_command_status_stonith_time.stdout != '300s'
+
+  - command: >-
+      crm configure show type:rsc_defaults rsc-options
+    register: crm_command_status
+    changed_when: false
+    failed_when: false
+  - name: configure resource-stickiness
+    command: >-
+      crm configure rsc_defaults resource-stickiness=1
+    when: |
+      'resource-stickiness=1' not in crm_command_status.stdout
+  - name: configure migration-threshold
+    command: >-
+      crm configure rsc_defaults migration-threshold=3
+    when: |
+      'migration-threshold=3' not in crm_command_status.stdout
+
+  - command: >-
+      crm configure show type:op_defaults op-options
+    register: crm_command_status
+    changed_when: false
+    failed_when: false
+
+  - name: configure timeout
+    command: >-
+      crm configure op_defaults timeout=600
+    when: |
+      'timeout=600' not in crm_command_status.stdout
+  when:
+    ansible_os_family == 'Suse'
+
+- block:
+  - command: pcs resource defaults
+    register: pcs_command_status
+    changed_when: false
+
+  - name: configure resource-stickiness
+    command: pcs resource defaults update resource-stickiness=1000
+    when: |
+      'resource-stickiness=1000' not in pcs_command_status.stdout
+      
+  - name: configure migration-threshold
+    command: pcs resource defaults update migration-threshold=5000
+    when: |
+      'migration-threshold=5000' not in pcs_command_status.stdout
+  when:
+    ansible_os_family == 'RedHat'

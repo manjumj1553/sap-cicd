@@ -1,0 +1,126 @@
+# Copyright 2021 Google LLC
+#
+# Licensed under the Apache License, Version 2.0 (the "License");
+# you may not use this file except in compliance with the License.
+# You may obtain a copy of the License at
+#
+#     https://www.apache.org/licenses/LICENSE-2.0
+#
+# Unless required by applicable law or agreed to in writing, software
+# distributed under the License is distributed on an "AS IS" BASIS,
+# WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+# See the License for the specific language governing permissions and
+# limitations under the License.
+
+- name: SAP NW deploy
+  hosts: 127.0.0.1
+  connection: local
+  roles:
+  - role: forminator
+    vars:
+      sap_tf_project_path: './tf'
+      sap_state: '{{ state | default("present") }}'
+      sap_hana_backint_bucket_name: '{{ sap_hana_backint_bucket_name | default("") }}'
+      fqdn_name: '{{ sap_host_fqdn }}'
+      sap_tf_variables:
+        project_id: '{{ sap_project_id }}'
+        subnetwork: '{{ sap_subnetwork }}'
+        subnetwork_project: '{{ sap_subnetwork_project_id | default("") }}'
+        source_image_name: '{{ sap_source_image_name}}'
+        source_image_project: '{{ sap_source_image_project }}'
+        primary_zone: '{{ sap_primary_zone }}'
+        secondary_zone: '{{ sap_secondary_zone }}'
+        sap_nw_dr_ascs_instance_name: '{{ sap_nw_dr_ascs_instance_name }}'
+        sap_nw_dr_ascs_instance_ip: '{{ sap_nw_dr_ascs_instance_ip }}'
+        sap_nw_dr_ascs_instance_type: '{{ sap_nw_dr_ascs_instance_type | default("n2d-standard-8") }}'
+        sap_nw_dr_ascs_boot_disk_size: '{{ sap_nw_dr_ascs_boot_disk_size | default(30) }}'
+        sap_nw_dr_ascs_boot_disk_type: '{{ sap_nw_dr_ascs_boot_disk_type | default("pd-balanced") }}'
+        sap_nw_dr_ascs_autodelete_boot_disk: '{{ sap_nw_dr_ascs_autodelete_boot_disk | default(true) }}'
+        sap_nw_dr_ascs_usrsap_disk_size: '{{ sap_nw_dr_ascs_usrsap_disk_size | default(20) }}'
+        sap_nw_dr_ascs_swap_disk_size: '{{ sap_nw_dr_ascs_swap_disk_size }}'
+        sap_nw_dr_ascs_usrsap_disk_type: '{{ sap_nw_dr_ascs_usrsap_disk_type | default("pd-balanced") }}'
+        sap_nw_dr_ascs_swap_disk_type: '{{ sap_nw_dr_ascs_swap_disk_type | default("pd-balanced") }}'
+        sap_nw_dr_ascs_service_account_email: '{{ sap_nw_dr_ascs_service_account_email | default("{}@{}.iam.gserviceaccount.com".format(sap_nw_dr_service_account_name | default("sap-common-sa"), sap_project_id)) }}'
+        sap_nw_dr_ascs_network_tags: '{{ sap_nw_dr_ascs_network_tags | default(["sap-allow-all"]) }}'
+        sap_nw_dr_ascs_pd_kms_key: '{{ sap_nw_dr_ascs_pd_kms_key }}'
+        sap_nw_dr_ascs_labels: '{{ sap_nw_dr_ascs_labels }}'
+        sap_nw_dr_ascs_create_instance_group: '{{ sap_nw_dr_ascs_create_instance_group | default(true) }}'
+        sap_nw_dr_ascs_instance_group_name: '{{ sap_nw_dr_ascs_instance_group_name }}'
+        sap_nw_dr_ascs_alias_ip: '{{ sap_nw_dr_ascs_alias_ip | default("") }}'
+        sap_nw_dr_ascs_named_ports: '{{ sap_nw_dr_ascs_named_ports }}'
+
+        sap_nw_dr_ers_instance_name: '{{ sap_nw_dr_ers_instance_name }}'
+        sap_nw_dr_ers_instance_ip: '{{ sap_nw_dr_ers_instance_ip }}'
+        sap_nw_dr_ers_instance_type: '{{ sap_nw_dr_ers_instance_type | default("n2d-standard-8") }}'
+        sap_nw_dr_ers_boot_disk_size: '{{ sap_nw_dr_ers_boot_disk_size | default(30) }}'
+        sap_nw_dr_ers_boot_disk_type: '{{ sap_nw_dr_ers_boot_disk_type | default("pd-balanced") }}'
+        sap_nw_dr_ers_autodelete_boot_disk: '{{ sap_nw_dr_ers_autodelete_boot_disk | default(true) }}'
+        sap_nw_dr_ers_usrsap_disk_size: '{{ sap_nw_dr_ers_usrsap_disk_size | default(20) }}'
+        sap_nw_dr_ers_swap_disk_size: '{{ sap_nw_dr_ers_swap_disk_size }}'
+        sap_nw_dr_ers_usrsap_disk_type: '{{ sap_nw_dr_ers_usrsap_disk_type | default("pd-balanced") }}'
+        sap_nw_dr_ers_swap_disk_type: '{{ sap_nw_dr_ers_swap_disk_type | default("pd-balanced") }}'
+        sap_nw_dr_ers_service_account_email: '{{ sap_nw_dr_ers_service_account_email | default("{}@{}.iam.gserviceaccount.com".format(sap_nw_dr_service_account_name | default("sap-common-sa"), sap_project_id)) }}'
+        sap_nw_dr_ers_network_tags: '{{ sap_nw_dr_ers_network_tags | default(["sap-allow-all"]) }}'
+        sap_nw_dr_ers_pd_kms_key: '{{ sap_nw_dr_ers_pd_kms_key }}'
+        sap_nw_dr_ers_labels: '{{ sap_nw_dr_ers_labels }}'
+        sap_nw_dr_ers_create_instance_group: '{{ sap_nw_dr_ers_create_instance_group | default(true) }}'
+        sap_nw_dr_ers_instance_group_name: '{{ sap_nw_dr_ers_instance_group_name }}'
+        sap_nw_dr_ers_alias_ip: '{{ sap_nw_dr_ers_alias_ip | default("") }}'
+        sap_nw_dr_ers_named_ports: '{{ sap_nw_dr_ers_named_ports }}'
+
+        network_project: '{{ network_project }}'
+        sap_nw_dr_ascs_ilb_name: '{{ sap_nw_dr_ascs_ilb_name }}'
+        sap_nw_dr_ascs_health_check_port: '{{ sap_nw_dr_ascs_health_check_port | default("60000") }}'
+        sap_nw_dr_ascs_health_check_port_name: '{{ sap_nw_dr_ascs_health_check_port_name }}'
+        sap_nw_dr_ascs_ilb_ip_address: '{{ sap_nw_dr_ascs_ilb_ip_address }}'
+        sap_nw_dr_ascs_health_check_name: '{{ sap_nw_dr_ascs_health_check_name }}'
+        sap_nw_dr_ascs_backend_service_name: '{{ sap_nw_dr_ascs_backend_service_name }}'
+        sap_nw_dr_ers_ilb_name: '{{ sap_nw_dr_ers_ilb_name }}'
+        sap_nw_dr_ers_health_check_port: '{{ sap_nw_dr_ers_health_check_port | default("60001") }}'
+        sap_nw_dr_ers_health_check_port_name: '{{ sap_nw_dr_ers_health_check_port_name }}'
+        sap_nw_dr_ers_ilb_ip_address: '{{ sap_nw_dr_ers_ilb_ip_address }}'
+        sap_nw_dr_ers_health_check_name: '{{ sap_nw_dr_ers_health_check_name }}'
+        sap_nw_dr_ers_backend_service_name: '{{ sap_nw_dr_ers_backend_service_name }}'
+#  - role: gcp-secrets-manager
+  tags: [nw]
+
+- name: SAP application configure
+  hosts: nw
+  become: yes
+  become_user: root  
+  roles:
+  - role: nw-ha-dr
+    vars:
+      sap_hana_vip: '{{ sap_hana_instance_ip }}'
+      sap_nw_ascs_vip: '{{ sap_nw_dr_ascs_ilb_ip_address }}'
+      sap_nw_ers_vip: '{{ sap_nw_dr_ers_ilb_ip_address }}'
+      sap_ascs_instance_name: '{{ sap_nw_dr_ascs_instance_name }}'
+      sap_ers_instance_name: '{{ sap_nw_dr_ers_instance_name }}'
+      sap_nw_ascs_health_check_port: '{{ sap_nw_dr_ascs_health_check_port }}'
+      sap_nw_ers_health_check_port: '{{ sap_nw_dr_ers_health_check_port }}'
+      sap_nw_product_and_version: '{{ sap_nw_dr_product_and_version }}'
+  tags: [nw]
+
+- name: Reboot ASCS and ERS
+  hosts: 127.0.0.1
+  connection: local 
+  roles:
+  - role: system-reboot
+    vars:
+      instances:
+        - name: "{{ sap_nw_dr_ascs_instance_name }}"
+          zone: "{{ sap_primary_zone }}"
+        - name: "{{ sap_nw_dr_ers_instance_name }}"
+          zone: "{{ sap_secondary_zone }}"
+    when: groups.get('nw', []) | length > 0
+  tags: [nw]
+
+- name: Cluster Maintenance after reboot
+  hosts: nw
+  become: yes
+  become_user: root 
+  roles:
+  - role: cluster-maintenance
+    vars:
+      sap_nw_user: '{{ sap_nw_sid | lower }}adm'
+  tags: [nw]

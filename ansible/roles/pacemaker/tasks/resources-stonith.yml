@@ -1,0 +1,203 @@
+# Copyright 2021 Google LLC
+#
+# Licensed under the Apache License, Version 2.0 (the "License");
+# you may not use this file except in compliance with the License.
+# You may obtain a copy of the License at
+#
+#     https://www.apache.org/licenses/LICENSE-2.0
+#
+# Unless required by applicable law or agreed to in writing, software
+# distributed under the License is distributed on an "AS IS" BASIS,
+# WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+# See the License for the specific language governing permissions and
+# limitations under the License.
+
+- block:
+  - command: |
+      pcs stonith status
+    register: pcs_command_status
+    changed_when: false
+
+  - name: configure property startup-fencing
+    command: pcs property set startup-fencing=true
+    when:
+      - 'startup-fencing: true' not in pcs_command_status.stdout
+      - sap_system_type == "nw"
+
+  - name: configure property stonith-enabled
+    command: pcs property set stonith-enabled=true
+    when:
+      - 'stonith-enabled: true' not in pcs_command_status.stdout
+      - sap_system_type == "nw"
+
+  - name: configure property stonith-timeout
+    command: pcs property set stonith-timeout=300s
+    when:
+      - 'stonith-timeout: 300s' not in pcs_command_status.stdout
+      - sap_system_type == "nw"
+
+  - name: define fence_gce instance argument
+    set_fact:
+      fence_gce_instance_argument: '{{ "port" if fence_agents_release | int < 30 else "plug" }}'
+    when: sap_system_type == "nw"
+
+  - name: configure stonith resources on primary
+    command: >-
+      pcs stonith create STONITH-{{ sap_hana_primary_instance_name }} fence_gce 
+      port={{ sap_hana_primary_instance_name }}
+      zone={{ sap_hana_primary_zone }} 
+      project={{ sap_project_id }}
+      pcmk_reboot_timeout=300 pcmk_monitor_retries=4 pcmk_delay_max=30 
+      op monitor interval="300s" timeout="120s" 
+      op start interval="0" timeout="60s"
+    delegate_to: "{{ sap_hana_primary_instance_ip }}" 
+    ignore_errors: true
+    when: sap_hana_ilb_name is defined or sap_hana_ilb_name is not none
+  
+  - command: |
+      pcs stonith status
+    register: pcs_command_status
+    changed_when: false
+
+  - name: configure stonith resources
+    command: >-
+      pcs stonith create STONITH-{{ item.instance }} fence_gce
+      {{ fence_gce_instance_argument }}={{ item.instance }}
+      zone={{ item.zone }}
+      project={{ sap_project_id }}
+      method=cycle
+    loop:
+    - instance: '{{ sap_primary_instance }}'
+      zone: '{{ sap_primary_zone }}'
+    - instance: '{{ sap_secondary_instance }}'
+      zone: '{{ sap_secondary_zone }}'
+    when:
+      - 'STONITH-' + item.instance not in pcs_command_status.stdout
+      - sap_system_type == "nw"
+
+  - name: configure stonith resources on secondary
+    command: >-
+      pcs stonith create STONITH-{{ sap_hana_secondary_instance_name }} fence_gce 
+      port={{ sap_hana_secondary_instance_name }}
+      zone={{ sap_hana_secondary_zone }} 
+      project={{ sap_project_id }}
+      pcmk_reboot_timeout=300 pcmk_monitor_retries=4 pcmk_delay_max=30 
+      op monitor interval="300s" timeout="120s" 
+      op start interval="0" timeout="60s"
+    delegate_to: "{{ sap_hana_primary_instance_ip }}" 
+    ignore_errors: true
+    when: sap_hana_ilb_name is defined or sap_hana_ilb_name is not none
+
+  - command: |
+      pcs constraint location show
+    register: pcs_command_status
+    changed_when: false
+
+  - name: configure stonith location constraints
+    command: >-
+      pcs constraint location STONITH-{{ item.this }}
+      prefers {{ item.other }}=INFINITY
+    loop:
+    - this: '{{ sap_primary_instance }}'
+      other: '{{ sap_secondary_instance }}'
+    - this: '{{ sap_secondary_instance }}'
+      other: '{{ sap_primary_instance }}'
+    when:
+      - 'Resource: STONITH-' + item.this not in pcs_command_status.stdout
+      - sap_system_type == "nw"
+
+  - name: configure stonith location constraints
+    command: >-
+      pcs constraint location STONITH-{{ sap_hana_primary_instance_name }} avoids {{sap_hana_primary_instance_name}}
+    delegate_to: "{{ sap_hana_primary_instance_ip }}" 
+    when: sap_hana_ilb_name is defined or sap_hana_ilb_name is not none
+  
+  - name: configure stonith location constraints
+    command: >-
+      pcs constraint location STONITH-{{ sap_hana_secondary_instance_name }} avoids {{sap_hana_secondary_instance_name}}
+    delegate_to: "{{ sap_hana_primary_instance_ip }}"
+    when: sap_hana_ilb_name is defined or sap_hana_ilb_name is not none
+
+  when: |
+    ansible_os_family == 'RedHat'
+
+- block:
+  - command: |
+      crm configure get_property stonith-enabled
+    register: crm_command_status
+    changed_when: false
+  - name: configure property stonith-enabled
+    command: |
+      crm configure property stonith-enabled=true
+    when: |
+      crm_command_status.stdout != 'true'
+
+  - command: |
+      crm configure get_property stonith-timeout
+    register: crm_command_status
+    changed_when: false
+  - name: configure property stonith-timeout
+    command: |
+      crm configure property stonith-timeout=300s
+    when: |
+      crm_command_status.stdout != '300s'
+
+  - command: |
+      crm configure show FENCING_*
+    register: crm_command_status
+    changed_when: false
+    failed_when: false
+  - name: configure stonith resources primary
+    command: >-
+      crm configure primitive FENCING_RESOURCE_{{ item.instance_name }} stonith:fence_gce
+      op monitor interval=300s timeout=120s
+      op start interval=0 timeout=60s
+      params port={{ item.instance_name }} zone={{ item.zone }}
+      project={{ sap_project_id }}
+      pcmk_reboot_timeout=300 pcmk_monitor_retries=4 pcmk_delay_max=30
+    register: crm_configure_stonith
+    changed_when: crm_configure_stonith.rc == 0
+    failed_when: >-
+      crm_configure_stonith.rc != 0 and
+      'Found existing' not in crm_configure_stonith.stderr
+    when: "'FENCING_' not in crm_command_status.stdout"
+    loop:
+    - { instance_name: "{{ sap_primary_instance }}", zone: "{{ sap_hana_primary_zone }}" }
+      
+  - name: configure stonith resources secondary
+    command: >-
+      crm configure primitive FENCING_RESOURCE_{{ item.instance_name }} stonith:fence_gce
+      op monitor interval=300s timeout=120s
+      op start interval=0 timeout=60s
+      params port={{ item.instance_name }} zone={{ item.zone }}
+      project={{ sap_project_id }}
+      pcmk_reboot_timeout=300 pcmk_monitor_retries=4
+    register: crm_configure_stonith
+    changed_when: crm_configure_stonith.rc == 0
+    failed_when: >-
+      crm_configure_stonith.rc != 0 and
+      'Found existing' not in crm_configure_stonith.stderr
+    when: "'FENCING_' not in crm_command_status.stdout"
+    loop:
+    - { instance_name: "{{ sap_secondary_instance }}", zone: "{{ sap_hana_secondary_zone }}" }
+
+  - command: |
+      crm configure show FENCING_LOCATION_NAME_*
+    register: crm_command_status
+    changed_when: false
+    failed_when: false
+  - name: configure location constraints for stonith
+    command: >-
+      crm configure location FENCING_LOCATION_NAME_{{ item }}
+      FENCING_RESOURCE_{{ item }} -inf: {{ item }}
+    register: crm_configure_stonith
+    changed_when: crm_configure_stonith.rc == 0
+    failed_when: >-
+      crm_configure_stonith.rc != 0 and
+      'Found existing' not in crm_configure_stonith.stderr
+    when: "'location FENCING_LOCATION_NAME_' not in crm_command_status.stdout"
+    loop:
+    - '{{ sap_primary_instance }}'
+    - '{{ sap_secondary_instance }}'
+  when: |
+    ansible_os_family == 'Suse'

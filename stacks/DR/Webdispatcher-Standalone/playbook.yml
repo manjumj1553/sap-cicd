@@ -1,0 +1,64 @@
+# Copyright 2021 Google LLC
+#
+# Licensed under the Apache License, Version 2.0 (the "License");
+# you may not use this file except in compliance with the License.
+# You may obtain a copy of the License at
+#
+#     https://www.apache.org/licenses/LICENSE-2.0
+#
+# Unless required by applicable law or agreed to in writing, software
+# distributed under the License is distributed on an "AS IS" BASIS,
+# WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+# See the License for the specific language governing permissions and
+# limitations under the License.
+
+- name: Webdispatcher Snapshotlist 
+  hosts: 127.0.0.1
+  connection: local
+  roles:
+    - role: snapshot-list
+      vars:
+         - {instance_type: "webdisp", instance_list: ["{{ primary_sap_webdisp_instance_name }}"], dzone: "{{ primary_sap_primary_zone }}", webdisp_usrsap_disk_prefix: "nw-0" } 
+
+- name: SAP NW deploy
+  hosts: 127.0.0.1
+  connection: local
+  roles:
+  - role: forminator
+    vars:
+      sap_tf_project_path: './tf'
+      sap_state: '{{ state | default("present") }}'
+      sap_hana_backint_bucket_name: '{{ sap_hana_backint_bucket_name | default("") }}'
+      fqdn_name: '{{ sap_host_fqdn }}'
+      sap_tf_variables:
+        project_id: '{{ sap_project_id }}'
+        subnetwork: '{{ sap_subnetwork }}'
+        subnetwork_project: '{{ sap_subnetwork_project_id | default("") }}'
+        sap_nw_webdisp_zone: '{{ sap_nw_webdisp_zone }}'
+        sap_nw_webdisp_instance_name: '{{ sap_nw_webdisp_instance_name | default("test-pas-instance") }}'
+        sap_nw_webdisp_instance_ip: '{{ sap_nw_webdisp_instance_ip }}'
+        sap_nw_webdisp_instance_type: '{{ sap_nw_webdisp_instance_type | default("n2d-standard-8") }}'
+        sap_nw_webdisp_boot_disk_size: '{{ sap_nw_webdisp_boot_disk_size | default(30) }}'
+        sap_nw_webdisp_boot_disk_type: '{{ sap_nw_webdisp_boot_disk_type | default("pd-balanced") }}'
+        sap_nw_webdisp_autodelete_boot_disk: '{{ sap_nw_webdisp_autodelete_boot_disk | default(true) }}'
+        sap_nw_webdisp_usrsap_disk_size: '{{ sap_nw_webdisp_usrsap_disk_size | default(50) }}'
+        sap_nw_webdisp_usrsap_disk_type: '{{ sap_nw_webdisp_usrsap_disk_type | default("pd-balanced") }}'
+        sap_nw_webdisp_service_account_email: '{{ sap_nw_webdisp_service_account_email }}'
+        sap_nw_webdisp_network_tags: '{{ sap_nw_webdisp_network_tags | default(["sap-allow-all"]) }}'
+        sap_nw_webdisp_pd_kms_key: '{{ sap_nw_webdisp_pd_kms_key }}'
+        sap_nw_webdisp_labels: '{{ sap_nw_webdisp_labels }}'
+        sap_nw_webdisp_create_instance_group: '{{ sap_nw_webdisp_create_instance_group | default(false) }}'
+        sap_nw_webdisp_instance_group_name: '{{ sap_nw_webdisp_instance_group_name }}'
+        sap_nw_webdisp_instance_map: '{{ webdispmap }}'
+  # - role: gcp-secrets-manager
+  tags: [nw, assertions]
+
+- name: SAP application configure
+  hosts: nw
+  become: yes
+  become_user: root  
+  roles:
+  - role: webdisp-dr
+    vars:
+      sap_nw_zone: '{{ sap_nw_webdisp_zone }}'
+  tags: [nw]

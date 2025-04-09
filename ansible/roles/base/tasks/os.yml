@@ -1,0 +1,84 @@
+# Copyright 2021 Google LLC
+#
+# Licensed under the Apache License, Version 2.0 (the "License");
+# you may not use this file except in compliance with the License.
+# You may obtain a copy of the License at
+#
+#     https://www.apache.org/licenses/LICENSE-2.0
+#
+# Unless required by applicable law or agreed to in writing, software
+# distributed under the License is distributed on an "AS IS" BASIS,
+# WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+# See the License for the specific language governing permissions and
+# limitations under the License.
+
+- name: Wait for guest registration
+  command: systemctl is-active guestregister.service
+  register: guestregister
+  retries: 30
+  delay: 20
+  until: guestregister.stdout == 'inactive'
+  failed_when: guestregister.rc != 3
+  changed_when: false
+  when:
+  - ansible_os_family == 'Suse'
+  - wait_for_guest_register | bool
+
+- name: Install RedHat packages
+  package:
+    name: "{{ package_list }}"
+    state: present
+  register: result
+  retries: "{{ package_retries_cnt }}"
+  until: result is succeeded
+  delay: "{{ package_retries_delay }}"
+  when: ansible_os_family == 'RedHat'
+
+- name: Install GCLOUD SDK for Redhat
+  shell: |
+    tee -a /etc/yum.repos.d/google-cloud-sdk.repo << EOM
+    [google-cloud-cli]
+    name=Google Cloud CLI
+    baseurl=https://packages.cloud.google.com/yum/repos/cloud-sdk-el9-x86_64
+    enabled=1
+    gpgcheck=1
+    repo_gpgcheck=0
+    gpgkey=https://packages.cloud.google.com/yum/doc/rpm-package-key.gpg
+    EOM
+    dnf -y install google-cloud-cli 
+  when: ansible_os_family == 'RedHat'
+
+- name: Install Suse packages
+  zypper:
+    name: "{{ item }}"
+    state: present
+    update_cache: no
+  register: result
+  retries: "{{ package_retries_cnt }}"
+  until: result is succeeded
+  delay: "{{ package_retries_delay }}"
+  when: ansible_os_family == 'Suse'
+  with_items: "{{ package_list }}"
+
+- name: Disable SELinux
+  selinux:
+    state: disabled
+  register: result
+  failed_when: result.msg | default('ok', True) is not search('(^ok$|libselinux-python|(SELinux state changed))')
+
+- sysctl:
+    name: "{{ item }}"
+    value: '0'
+    sysctl_set: yes
+    state: present
+    reload: yes
+    # Don't fail if these sysctls are missing as not all OS versions have them.
+    ignoreerrors: true
+  loop:
+    - vm.pagecache_limit_mb
+    - vm.pagecache_limit_ignore_dirty
+    - net.ipv4.tcp_slow_start_after_idle
+    - kernel.numa_balancing
+  when: ansible_facts['distribution'] == "SLES_SAP"
+
+

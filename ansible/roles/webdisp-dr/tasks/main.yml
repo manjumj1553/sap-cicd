@@ -1,0 +1,55 @@
+# Copyright 2021 Google LLC
+#
+# Licensed under the Apache License, Version 2.0 (the "License");
+# you may not use this file except in compliance with the License.
+# You may obtain a copy of the License at
+#
+#     https://www.apache.org/licenses/LICENSE-2.0
+#
+# Unless required by applicable law or agreed to in writing, software
+# distributed under the License is distributed on an "AS IS" BASIS,
+# WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+# See the License for the specific language governing permissions and
+# limitations under the License.
+
+- name: ensure that a known product version is defined
+  assert:
+    that: sap_nw_product_and_version in sap_product_vars
+    fail_msg: 'sap_nw_product and sap_nw_product_version must match one of {{ sap_product_vars.keys() | join(", ") }}'
+
+- name: update /etc/idmapd.conf file NetappVolume entry settings
+  replace:
+    path: /etc/idmapd.conf
+    regexp: "localdomain"
+    replace: "defaultv4iddomain.com"
+
+- name: restart nfsidmap service
+  command: nfsidmap -c
+
+- name: update autofs entries in /etc/auto.sap
+  include_tasks: '{{ role_path }}/tasks/configure-nfs.yml'
+  vars:
+    sapmnt_nfs_server_path: '{{ sap_nw_nfs_src }}'
+    primary_sap_nw_nfs_src: '{{ primary_sap_nw_nfs_src }}'
+
+- name: include storage role
+  include_role:
+    name: storage
+  vars:
+    disks: '{{ sap_nw_disks }}'
+    logvols: '{{ sap_nw_logvols }}'
+
+- name: include hosts-file role
+  include_role:
+    name: hosts-file
+  vars:
+    hosts_file_entries: {}
+    hosts_file_peers: '{{ ansible_play_hosts }}'
+
+- name: update /etc/hosts file with fqdn entries for replacing
+  replace:
+    path: /etc/hosts
+    regexp: "{{ item.old }}"
+    replace: "{{ item.new }}"
+  loop:
+    - { old: "{{ sap_nw_zone }}.c.{{ sap_project_id }}.internal", new: "{{ sap_host_fqdn }}" }

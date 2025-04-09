@@ -1,0 +1,84 @@
+# Copyright 2021 Google LLC
+#
+# Licensed under the Apache License, Version 2.0 (the "License");
+# you may not use this file except in compliance with the License.
+# You may obtain a copy of the License at
+#
+#     https://www.apache.org/licenses/LICENSE-2.0
+#
+# Unless required by applicable law or agreed to in writing, software
+# distributed under the License is distributed on an "AS IS" BASIS,
+# WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+# See the License for the specific language governing permissions and
+# limitations under the License.
+
+- name: ensure that a known product version is defined
+  assert:
+    that: sap_nw_product_and_version in sap_product_vars
+    fail_msg: 'sap_nw_product and sap_nw_product_version must match one of {{ sap_product_vars.keys() | join(", ") }}'
+
+- name: update /etc/idmapd.conf file NetappVolume entry settings
+  replace:
+    path: /etc/idmapd.conf
+    regexp: "localdomain"
+    replace: "defaultv4iddomain.com"
+
+- name: restart nfsidmap service
+  command: nfsidmap -c
+
+- name: update autofs entries in /etc/auto.sap
+  include_tasks: '{{ role_path }}/tasks/configure-nfs.yml'
+  vars:
+    sapmnt_nfs_server_path: '{{ sap_nw_nfs_src }}'
+    primary_sap_nw_nfs_src: '{{ primary_sap_nw_nfs_src }}'
+
+- name: include storage role
+  include_role:
+    name: storage
+  vars:
+    disks: '{{ sap_nw_disks }}'
+    logvols: '{{ sap_nw_logvols }}'
+
+- name: include hosts-file role
+  include_role:
+    name: hosts-file
+  vars:
+    hosts_file_peers: '{{ ansible_play_hosts }}'
+
+- name: Replace /etc/hosts entry for ASCS
+  lineinfile:
+    path: /etc/hosts
+    regexp: ".*{{ sap_nw_ascs_virtual_host }}.{{ sap_host_fqdn }}.*"
+    line: "{{ sap_nw_ascs_vip }} {{ sap_nw_ascs_virtual_host }}.{{ sap_host_fqdn }} {{ sap_nw_ascs_virtual_host }}"
+    state: present
+  become: true
+
+- name: Replace /etc/hosts entry for PAS
+  lineinfile:
+    path: /etc/hosts
+    regexp: ".*{{ sap_nw_pas_virtual_host }}.{{ sap_host_fqdn }}.*"
+    line: "{{ sap_nw_pas_vip }} {{ sap_nw_pas_virtual_host }}.{{ sap_host_fqdn }} {{ sap_nw_pas_virtual_host }}"
+    state: present
+  become: true
+
+- name: Ensure NetworkManager connection profile is configured
+  shell: |
+    systemctl enable NetworkManager
+    systemctl restart NetworkManager
+    nmcli con mod "System ens4" ipv4.addresses ""
+    nmcli con mod "System ens4" +ip4 '{{ sap_nw_alias_ip[1] }}/32'
+    nmcli conn up "System ens4"
+  loop: "{{ range(0, sap_nw_alias_ip | length) | list }}"
+  when: |
+    ansible_os_family == 'RedHat'
+    
+- name: update /etc/hosts file with fqdn entries for replacing
+  replace:
+    path: /etc/hosts
+    regexp: "{{ item.old }}"
+    replace: "{{ item.new }}"
+  loop:
+    - { old: "{{ sap_zone }}.c.{{ sap_project_id }}.internal", new: "{{ sap_host_fqdn }}" }
+
+- name: Ensure Key,DAT files copied to new DR system
+  command: mv "/home/{{ sap_nw_user }}/.hdb/{{ primary_sap_nw_instance_name }}" "/home/{{ sap_nw_user }}/.hdb/{{ sap_nw_instance_name }}"

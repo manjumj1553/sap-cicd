@@ -1,0 +1,40 @@
+- name: Add GCP SAP agent repository for SLES 
+  zypper_repository:
+    name: google-cloud-sap-agent
+    repo: 'https://packages.cloud.google.com/yum/repos/google-cloud-sap-agent-sles15-$basearch'
+    state: present
+  when: ansible_os_family == 'Suse'
+
+- name: Install GCP SAP agent for SLES
+  zypper:
+    name: google-cloud-sap-agent
+    state: latest
+    type: package
+  register: result
+  until: result is succeeded
+  when: ansible_os_family == 'Suse'
+
+- name: Add GCP SAP agent repository for RHEL
+  yum_repository:
+    name: google-cloud-sap-agent
+    description: Google Cloud Agent for SAP
+    baseurl: 'https://packages.cloud.google.com/yum/repos/google-cloud-sap-agent-el$(cat /etc/redhat-release | cut -d . -f 1 | tr -d -c 0-9)-$basearch'
+    enabled: true
+    gpgcheck: no
+    repo_gpgcheck: no
+    gpgkey: https://packages.cloud.google.com/yum/doc/yum-key.gpg https://packages.cloud.google.com/yum/doc/rpm-package-key.gpg
+  when: ansible_os_family == 'RedHat'
+
+- name: Install GCP SAP agent for RHEL
+  yum:
+    name: google-cloud-sap-agent
+    state: latest
+  register: rpm_is_installed
+  until: rpm_is_installed is succeeded
+  when: ansible_os_family == 'RedHat'
+
+- name: Restart Google Cloud SAP Agent
+  service:
+    name: google-cloud-sap-agent
+    state: restarted
+    enabled: yes

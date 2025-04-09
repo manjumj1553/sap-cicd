@@ -1,0 +1,73 @@
+# Copyright 2021 Google LLC
+#
+# Licensed under the Apache License, Version 2.0 (the "License");
+# you may not use this file except in compliance with the License.
+# You may obtain a copy of the License at
+#
+#     https://www.apache.org/licenses/LICENSE-2.0
+#
+# Unless required by applicable law or agreed to in writing, software
+# distributed under the License is distributed on an "AS IS" BASIS,
+# WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+# See the License for the specific language governing permissions and
+# limitations under the License.
+
+sap_maxdb_install_files_bucket: sap-deployment-media
+sap_maxdb_install_files_dest: '/sapmnt/Software'
+sap_maxdb_password: ''
+sap_maxdb_master_password: '{{ sap_maxdb_password }}'
+sap_maxdb_sapadm_password: '{{ sap_maxdb_password }}'
+sap_maxdb_sidadm_password: '{{ sap_maxdb_password }}'
+sap_maxdb_dba_user_password: '{{ sap_maxdb_password }}'
+sap_maxdb_dbm_user_password: '{{ sap_maxdb_password }}'
+sap_maxdb_sqd_user_password: '{{ sap_maxdb_password }}'
+sap_sapmnt_mount: /sapmnt
+sap_maxdb_usrsys_nfs_mount_src: ''
+sap_maxdb_kernel_files: '{{ sap_maxdb_install_files_dest }}/Kernel_Files'
+sap_maxdb_user: '{{ sap_maxdb_sid | lower }}adm'
+sap_maxdbcs_user: '{{ sap_maxdbcs_sid | lower }}adm'
+sap_sidadm_uid: 2000
+sap_sapadm_uid: 2001
+sap_sapsys_gid: 2626
+sap_maxdb_cpu_number: 2
+sap_maxdb_sessions: 100
+sap_maxdb_memory: 5329 
+sap_maxdb_log_size: 1000
+
+sap_maxdb_disks:
+- name: usrsap
+  partition_path: usrsap
+- name: sapdb
+  partition_path: sapdb
+- name: maxdbbackup
+  partition_path: maxdbbackup
+sap_maxdb_logvols:
+  usrsap:
+    size: 100%VG
+    vol: usrsap
+    mountpoint: /usr/sap
+    fstype: xfs
+  sapdb:
+    size: 100%VG
+    vol: sapdb
+    mountpoint: /sapdb
+    fstype: xfs
+  maxdbbackup:
+    size: 100%VG
+    vol: maxdbbackup
+    mountpoint: /maxdbbackup
+    fstype: xfs
+
+sap_maxdb_product: 'MaxDB'
+sap_maxdb_product_version: '79'
+sap_maxdb_product_and_version: '{{ sap_maxdb_product }}/{{ sap_maxdb_product_version }}'
+# sap_nw_product and sap_nw_product_version must be set to one of the <product>/<version> combos in sap_product_vars.
+sap_product_vars:
+  'MaxDB/79':
+    onehost_sapcs_product_id: 'SAPCS:GENERIC.IND.PD'
+    onehost_sapdb_product_id: 'ContentServerSapdb:GENERIC.IND.PD'
+    swpm_path: '{{ sap_maxdb_install_files_dest }}/SWPM10SP32'
+    load_files: '{{ sap_maxdb_install_files_dest }}/Kernel_Files'
+    install_files: [Kernel_Files, SWPM10SP32]
+    onehost_sapinst_sapcs_template: inifile_onehost_sapcs.params
+    onehost_sapinst_sapdb_template: inifile_onehost_sapdb.params

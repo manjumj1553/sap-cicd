@@ -1,0 +1,78 @@
+# Copyright 2021 Google LLC
+#
+# Licensed under the Apache License, Version 2.0 (the "License");
+# you may not use this file except in compliance with the License.
+# You may obtain a copy of the License at
+#
+#     https://www.apache.org/licenses/LICENSE-2.0
+#
+# Unless required by applicable law or agreed to in writing, software
+# distributed under the License is distributed on an "AS IS" BASIS,
+# WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+# See the License for the specific language governing permissions and
+# limitations under the License.
+
+sap_project_id: ccg24-hrzana-fin-gls4-stg 
+sap_source_image_name: pp-sap-west-rhel
+sap_source_image_project: pp-prod-etx-images
+sap_tf_state_bucket: pp_ccg24_gls4_stg_state
+sap_tf_state_bucket_prefix: bw4_demo
+sap_zone: us-west4-a
+
+sap_hana_install_files_bucket: gls4_stg_build
+sap_hana_instance_name: sapbx4dbpu01
+sap_hana_instance_ip: 10.174.90.62
+sap_hana_instance_type: n2-highmem-32
+sap_hana_service_account_email: lsvc-p-fin-gls4-stg@ccg24-hrzana-fin-gls4-stg.iam.gserviceaccount.com
+sap_hana_additional_disk_type: pd-balanced
+sap_hana_subnetwork: ccg24-us-west4-hrzana-2
+sap_hana_sid: BX4
+fqdn_name: "gcp.fin.paypalinc.com"
+sap_hana_instance_number: "00"
+sap_nw_ascs_instance_number: "01"
+sap_nw_pas_instance_number: "00"
+
+sap_nw_install_files_bucket: gls4_stg_build
+sap_nw_instance_name: sapbx4asu01
+sap_nw_aas_ip: 
+sap_nw_instance_ip: 10.174.90.61
+sap_nw_instance_type: n2-standard-4
+sap_nw_service_account_email: lsvc-p-fin-gls4-stg@ccg24-hrzana-fin-gls4-stg.iam.gserviceaccount.com 
+sap_nw_sid: BX4
+sap_hana_backint_install: true
+sap_hana_backint_bucket_name: pp_ccg24_gls4_hana_backup_stg
+sap_nw_product_and_version: 'BW4HANA/2023'
+sap_nw_subnetwork: ccg24-us-west4-hrzana-2
+sap_sapinst_nw: true
+sap_bw4hana_stack: true
+
+#Refer the url to identify the required HANA Disk sizes: https://cloud.google.com/solutions/sap/docs/sap-hana-planning-guide#hana-minimum-pd-sizes-ssd-balanced
+sap_hana_data_size: 599
+sap_hana_log_size: 104
+sap_hana_shared_size: 208
+sap_hana_usr_size: 100
+sap_hana_swap_size: 2
+sap_hana_boot_disk_size: 100
+sap_hana_pd_kms_key: 'projects/pp-prodcos-cmek-9519/locations/us-west4/keyRings/prod-pp-keyring-uswest4/cryptoKeys/prod-pp-vmenc-key-us-west4'
+
+sap_nw_boot_disk_size: 100
+sap_nw_usrsap_disk_size: 100
+sap_nw_swap_disk_size: 50
+sap_nw_pd_kms_key: 'projects/pp-prodcos-cmek-9519/locations/us-west4/keyRings/prod-pp-keyring-uswest4/cryptoKeys/prod-pp-vmenc-key-us-west4'
+
+sap_subnetwork_project_id: pp-p-us-west4-xpn 
+sap_ssh_user: patchmanager
+sap_hana_password: Paypal12345
+sap_nw_password: Paypal12345
+sap_daa_adm_password: Paypal12345
+
+sapmnt_nfs_server_path: 192.168.114.21:/sap-gcp-ax1/BX4
+sap_hana_labels: 
+  app: hana
+sap_nw_labels: 
+  app: nw
+
+sap_hana_addon_disks:
+  name: []
+  disk_size_gb: []
+  disk_type: []

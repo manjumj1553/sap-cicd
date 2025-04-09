@@ -1,0 +1,33 @@
+
+- name: Cluster out of maintenance mode (ASCS)
+  command: pcs property set maintenance-mode=false
+  when:
+    - hostvars[inventory_hostname].sap_is_scs | default(false)
+    - ansible_os_family == "RedHat"
+
+- name: Wait for cluster to be stable
+  wait_for:
+    timeout: 120
+  when:
+    - hostvars[inventory_hostname].sap_is_scs | default(false)
+    - ansible_os_family == "RedHat"
+
+- name: StartInstance
+  shell: |
+    . ${HOME}/.sapenv.sh
+    sapcontrol -nr {{ sap_nw_pas_instance_number }} -function StartSystem
+  become_user: "{{ sap_nw_user }}"
+  args:
+    executable: /bin/sh
+  when: 
+    - hostvars[inventory_hostname].sap_is_pas | default(false) 
+    - ansible_os_family == "RedHat"
+
+- name: update /etc/hosts file with fqdn entries for replacing
+  replace:
+    path: /etc/hosts
+    regexp: "{{ item.old }}"
+    replace: "{{ item.new }}"
+  loop:
+    - { old: "{{ sap_primary_zone}}.c.{{ sap_project_id }}.internal", new: "{{ sap_host_fqdn }}" }
+    - { old: "{{ sap_secondary_zone}}.c.{{ sap_project_id }}.internal", new: "{{ sap_host_fqdn }}" }

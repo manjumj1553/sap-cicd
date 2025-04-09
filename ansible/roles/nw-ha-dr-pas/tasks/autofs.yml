@@ -1,0 +1,27 @@
+- name: ensure autofs is stopped
+  systemd:
+    name: autofs
+    state: stopped
+
+- name: Unmount stale mount points
+  shell: |
+    umount -l {{ item.mountpoint }}
+  become: true
+  loop: "{{ nfs_client_mounts }}"
+  ignore_errors: true # In case the mount point doesn't exist.
+  failed_when: false
+  changed_when: false
+  
+- name: update /etc/auto.sap file with dr entries
+  replace:
+    path: /etc/auto.sap
+    regexp: "{{ item.old }}"
+    replace: "{{ item.new }}"
+  loop:
+    - { old: "{{ primary_sap_nw_nfs_src }}", new: "{{ sap_nw_nfs_src }}" }
+
+- name: ensure autofs is started
+  systemd:
+    name: autofs
+    enabled: true
+    state: started

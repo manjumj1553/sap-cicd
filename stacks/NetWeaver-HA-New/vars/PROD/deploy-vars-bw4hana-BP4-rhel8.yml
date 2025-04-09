@@ -1,0 +1,155 @@
+# Required variables
+
+# Project where resources are created.
+sap_project_id: ccg24-hrzana-fin-gls4-prod
+
+# Subnetwork for nw network interfaces.
+sap_subnetwork: ccg24-us-west4-hrzana-5
+
+# Define sap_subnetwork_project_id if using a shared VPC.
+sap_subnetwork_project_id: pp-p-us-west4-xpn
+
+sap_source_image_name: pp-sap-west-rhel
+sap_source_image_project: pp-prod-etx-images
+
+# Terraform state bucket.
+sap_tf_state_bucket: pp_ccg24_gls4_prod_state
+# Prefix for state file in Terraform state bucket.
+sap_tf_state_bucket_prefix: CI_BP4
+
+# Zone for HANA primary, ASCS, and PAS.
+sap_primary_zone: us-west4-a
+# Zone for HANA secondary and ERS.
+sap_secondary_zone: us-west4-b
+
+# ASCS Inputs
+sap_nw_ascs_instance_name: sapbp4ci01
+sap_nw_ascs_instance_ip: 10.174.174.95
+sap_nw_ascs_instance_type: n2-standard-2
+# Disk configuration
+sap_nw_ascs_boot_disk_size: 100
+sap_nw_ascs_boot_disk_type: pd-ssd
+# Delete boot disks automatically.
+sap_nw_ascs_autodelete_boot_disk: true
+sap_nw_ascs_usrsap_disk_size: 100
+sap_nw_ascs_swap_disk_size: 50
+sap_nw_ascs_usrsap_disk_type: pd-ssd
+sap_nw_ascs_swap_disk_type: pd-ssd
+sap_nw_ascs_create_instance_group: true
+sap_nw_ascs_instance_group_name: bp4-ascs00-umgrp
+# Service account names for NetWeaver instances.
+sap_nw_ascs_service_account_email: lsvc-p-fin-gls4-prd1@ccg24-hrzana-fin-gls4-prod.iam.gserviceaccount.com
+sap_nw_ascs_network_tags: ["sap-allow-all"]
+sap_nw_ascs_pd_kms_key: 'projects/pp-prodcos-cmek-9519/locations/us-west4/keyRings/prod-pp-keyring-uswest4/cryptoKeys/prod-pp-vmenc-key-us-west4'
+sap_nw_ascs_labels:
+  env: prod
+
+
+# ERS Inputs
+sap_nw_ers_instance_name: sapbp4ci02
+sap_nw_ers_instance_ip: 10.174.174.97
+sap_nw_ers_instance_type: n2-standard-2
+# Disk configuration
+sap_nw_ers_boot_disk_size: 100
+sap_nw_ers_boot_disk_type: pd-ssd
+# Delete boot disks automatically.
+sap_nw_ers_autodelete_boot_disk: true
+sap_nw_ers_usrsap_disk_size: 100
+sap_nw_ers_swap_disk_size: 50
+sap_nw_ers_usrsap_disk_type: pd-ssd
+sap_nw_ers_swap_disk_type: pd-ssd
+sap_nw_ers_create_instance_group: true
+sap_nw_ers_instance_group_name: bp4-ers10-umgrp
+# Service account names for NetWeaver instances.
+sap_nw_ers_service_account_email: lsvc-p-fin-gls4-prd1@ccg24-hrzana-fin-gls4-prod.iam.gserviceaccount.com
+sap_nw_ers_network_tags: ["sap-allow-all"]
+sap_nw_ers_pd_kms_key: 'projects/pp-prodcos-cmek-9519/locations/us-west4/keyRings/prod-pp-keyring-uswest4/cryptoKeys/prod-pp-vmenc-key-us-west4'
+sap_nw_ers_labels:
+  env: prod
+
+# PAS Inputs
+sap_nw_pas_instance_name: sapbp4asu01
+sap_nw_pas_instance_ip: 10.174.174.82
+sap_nw_pas_instance_type: n2-standard-32
+# Disk configuration
+sap_nw_pas_boot_disk_size: 100
+sap_nw_pas_boot_disk_type: pd-ssd
+# Delete boot disks automatically.
+sap_nw_pas_autodelete_boot_disk: true
+sap_nw_pas_usrsap_disk_size: 100
+sap_nw_pas_swap_disk_size: 50
+sap_nw_pas_usrsap_disk_type: pd-ssd
+sap_nw_pas_swap_disk_type: pd-ssd
+sap_nw_pas_create_instance_group: false
+sap_nw_pas_instance_group_name:
+sap_nw_pas_alias_ip: 10.174.174.128
+# Service account names for NetWeaver instances.
+sap_nw_pas_service_account_email: lsvc-p-fin-gls4-prd1@ccg24-hrzana-fin-gls4-prod.iam.gserviceaccount.com 
+sap_nw_pas_network_tags: ["sap-allow-all"]
+sap_nw_pas_pd_kms_key: 'projects/pp-prodcos-cmek-9519/locations/us-west4/keyRings/prod-pp-keyring-uswest4/cryptoKeys/prod-pp-vmenc-key-us-west4'
+sap_nw_pas_labels:
+  env: prod
+
+network_project: pp-p-us-west4-xpn
+sap_nw_ascs_ilb_name: bp4-ascs-ilb
+sap_nw_ascs_health_check_port: 60000
+sap_nw_ascs_health_check_port_name: bp4-ascs-hc-port
+sap_nw_ascs_ilb_ip_address: 10.174.174.98
+sap_nw_ascs_health_check_name: bp4-ascs-hc
+sap_nw_ascs_backend_service_name: bp4-ascs-be
+
+sap_nw_ers_ilb_name: bp4-ers-ilb
+sap_nw_ers_health_check_port: 60001
+sap_nw_ers_health_check_port_name: bp4-ers-hc-port
+sap_nw_ers_ilb_ip_address: 10.174.174.99
+sap_nw_ers_health_check_name: bp4-ers-hc
+sap_nw_ers_backend_service_name: bp4-ers-be
+
+sap_ssh_user: patchmanager
+sap_nw_ascs_virtual_host: sapbp4ascs
+sap_nw_ers_virtual_host: sapbp4ers
+sap_nw_pas_virtual_host: sapbp4app01
+sap_host_fqdn: "gcp.fin.paypalinc.com"
+
+# RHEL 8 ILB
+sap_hana_ilb_ip: 10.174.174.81
+sap_hana_virtual_host: bp4-fwr-vip
+
+sap_nw_daaadm_uid: 1033
+sap_nw_sidadm_uid: 1025
+sap_nw_sapadm_uid: 1032
+sap_sapsys_gid: 1025
+sap_nw_sapsys_gid: 1025
+
+# Bucket containing installation files for NetWeaver.
+sap_nw_install_files_bucket: gls4_prd_build
+
+# Secret ID of for HANA password from Google Secrets Manager and SAP requires atleast one capital letter.
+sap_hana_gsm_secret_id: hana_default_pass
+
+# Secret ID of for NW password from Google Secrets Manager and SAP requires atleast one capital letter.
+sap_nw_gsm_secret_id: hana_default_pass
+
+# Secret ID of for DAA password from Google Secrets Manager and SAP requires atleast one capital letter.
+sap_daa_gsm_secret_id: hana_default_pass 
+
+# NFS using one server, for example when using Cloud FileStore.
+sap_nw_nfs_src: 192.168.114.21:/sapmnt-bp4
+
+# Create source directories on NFS server, only if sap_nw_nfs_src is set.
+sap_nw_create_nfs_source_dirs: true
+
+# SIDs for NetWeaver.
+sap_nw_sid: BP4
+sap_hana_sid: BP4
+
+# Instance numbers for NetWeaver. Note that these must be quoted strings.
+# sap_nw_daa_instance_number: '90'
+sap_nw_ascs_instance_number: '00'
+sap_nw_ers_instance_number: '10'
+sap_nw_pas_instance_number: '00'
+sap_hana_instance_number: '00'
+sap_nw_ascs_install_web_dispatcher: false
+sap_nw_product_and_version: 'BW4HANA/2023'
+sap_hana_password: Paypal12345
+sap_nw_password: Paypal12345

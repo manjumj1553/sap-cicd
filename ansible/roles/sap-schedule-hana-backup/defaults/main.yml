@@ -1,0 +1,4 @@
+---
+backup_adm_usr: backupadm
+sap_hana_backup_log_mountpoint: /hanabackup/log/{{ sap_hana_sid | upper }}
+sap_hana_backup_data_mountpoint: /hanabackup/data/{{ sap_hana_sid | upper }}

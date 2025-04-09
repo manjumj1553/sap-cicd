@@ -1,0 +1,138 @@
+# Required variables
+
+# Terraform state bucket.
+sap_tf_state_bucket: pp_ccg24_gls4_stg_state
+# Prefix for state file in Terraform state bucket.
+sap_tf_state_bucket_prefix: CI_demo
+sap_ssh_user: patchmanager
+
+# Names for machine instances.
+sap_ascs_instance_name: sapax1ci01
+sap_ascs_instance_ip: 10.174.90.165
+sap_nw_ascs_virtual_host: sapax1ascs
+
+sap_nw_instance_type: n2-standard-8
+
+sap_ers_instance_name: sapax1ci02
+sap_ers_instance_ip: 10.174.90.166
+sap_nw_ers_virtual_host: sapax1ers
+
+sap_pas_instance_name: sapax1asu01
+sap_pas_instance_ip: 10.174.90.167
+sap_nw_pas_virtual_host: sapax1app01
+sap_pas_alias_ip: 10.174.90.168
+
+sap_nw_as_instance_type: n2-standard-4
+
+sap_ascs_instance_group_name: ax1-ascs01-umgrp
+sap_ers_instance_group_name: ax1-ers01-umgrp
+
+sap_host_fqdn: "gcp.fin.paypalinc.com"
+
+# VIP and ILB IPS
+sap_ers_ilb_ip: 10.174.90.169
+
+sap_ers_ilb_name: ax1-ers-ilb
+ers_health_check_name: ax1-ers-hc
+ers_backend_service_name: ax1-ers-be
+
+sap_ascs_ilb_ip: 10.174.90.170
+sap_ascs_ilb_name: ax1-ascs-ilb
+ascs_health_check_name: ax1-ascs-hc
+ascs_backend_service_name: ax1-ascs-be
+
+# RHEL 8 ILB
+sap_hana_ilb_ip: 10.174.90.177
+sap_hana_virtual_host: ax1-fwr-vip
+
+# Disk configuration
+sap_nw_boot_disk_size: 100
+sap_nw_boot_disk_type: pd-balanced
+sap_nw_usrsap_disk_type: pd-balanced
+sap_nw_swap_disk_type: pd-balanced
+
+sap_nw_swap_disk_size: 50
+sap_nw_usrsap_disk_size: 100
+sap_nw_pas_swap_disk_size: 50
+sap_nw_pas_usrsap_disk_size: 100
+
+sap_pas_boot_disk_type: pd-balanced
+sap_pas_usrsap_disk_type: pd-balanced
+sap_pas_swap_disk_type: pd-balanced
+
+sap_nw_daaadm_uid: 98
+sap_nw_sidadm_uid: 2000
+sap_nw_sapadm_uid: 2001
+sap_sapsys_gid: 79
+sap_nw_sapsys_gid: 79
+
+# Bucket containing installation files for NetWeaver.
+sap_nw_install_files_bucket: gls4_stg_build
+
+# Project where resources are created.
+sap_project_id: ccg24-hrzana-fin-gls4-stg
+
+# Subnetwork for nw network interfaces.
+sap_nw_subnetwork: ccg24-us-west4-hrzana-2
+
+# Secret ID of for HANA password from Google Secrets Manager and SAP requires atleast one capital letter.
+sap_hana_gsm_secret_id: hana_default_pass
+
+# Secret ID of for NW password from Google Secrets Manager and SAP requires atleast one capital letter.
+sap_nw_gsm_secret_id: hana_default_pass
+
+# Secret ID of for DAA password from Google Secrets Manager and SAP requires atleast one capital letter.
+sap_daa_gsm_secret_id: hana_default_pass
+
+# Service account names for NetWeaver instances.
+sap_nw_service_account_email: lsvc-p-fin-gls4-stg@ccg24-hrzana-fin-gls4-stg.iam.gserviceaccount.com
+
+# For NFS, define one of sap_nw_nfs_src or sap_nw_nfsvols, not both.
+#
+# NFS using one server, for example when using Cloud FileStore.
+# sap_nw_nfs_src: 10.167.224.4:/em2/XEL-TEST
+sap_nw_nfs_src: 192.168.114.21:/sap-gcp-ax1
+
+sap_nw_source_image_name: pp-sap-west-rhel
+sap_nw_source_image_project: pp-prod-etx-images
+
+# Zone for HANA primary, ASCS, and PAS.
+sap_primary_zone: us-west4-a
+# Zone for HANA secondary and ERS.
+sap_secondary_zone: us-west4-b
+
+# Delete boot disks automatically.
+sap_nw_autodelete_boot_disk: true
+
+# Create source directories on NFS server, only if sap_nw_nfs_src is set.
+sap_nw_create_nfs_source_dirs: true
+
+# SIDs for NetWeaver.
+sap_nw_sid: AX1
+sap_hana_sid: AX1
+
+# Instance numbers for NetWeaver. Note that these must be quoted strings.
+sap_nw_daa_instance_number: "90"
+sap_nw_ascs_instance_number: '01'
+sap_nw_ers_instance_number: '10'
+sap_nw_pas_instance_number: '00'
+sap_hana_instance_number: '00'
+sap_nw_ascs_install_web_dispatcher: true
+
+sap_nw_product_and_version: 'S4HANA/2023'
+
+# Define sap_subnetwork_project_id if using a shared VPC.
+sap_subnetwork_project_id: pp-p-us-west4-xpn
+sap_nw_network_tags: ["sap-allow-all"]
+sap_nw_pd_kms_key: 'projects/pp-prodcos-cmek-9519/locations/us-west4/keyRings/prod-pp-keyring-uswest4/cryptoKeys/prod-pp-vmenc-key-us-west4'
+sap_nw_ascs_health_check_port: 60000
+sap_nw_ers_health_check_port: 60001
+sap_nw_ascs_labels:
+  env: prod
+sap_nw_ers_labels:
+  env: prod
+sap_nw_pas_labels:
+  env: prod
+sap_hana_password: Paypal12345
+sap_nw_password: Paypal12345
+sap_daa_adm_password: Paypal12345

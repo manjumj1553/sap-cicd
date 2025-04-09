@@ -1,0 +1,31 @@
+- name: list the boot snapshot based on the machine name passed
+  gcp_compute_snapshot_info:
+    filters:
+    - name = "{{ item + '-' + zone + '-2' }}*"
+    project: '{{ primary_sap_project_id }}'
+    auth_kind: application
+  register: bsnaps
+
+- name: Get the value of bdisk snapshot
+  set_fact:
+    bmessage: "{{ bsnaps.resources | map(attribute='selfLink') | list }}"
+
+- name: Put the final disk name to array
+  set_fact:
+    bdisklist: "{{bdisklist}}+['{{ bmessage|last }}']"
+
+- name: list the additional snapshot based on the machine additional disk
+  gcp_compute_snapshot_info:
+    filters:
+    - name = "{{ item + '-' + usrsap_disk_prefix + '-' + zone }}*"
+    project: '{{ primary_sap_project_id }}'
+    auth_kind: application
+  register: addnlsnaps
+
+- name: Get the value of addnl snapshot name
+  set_fact:
+    addnldiskname: "{{ addnlsnaps.resources | map(attribute='selfLink') | list }}"
+
+- name: put the final disk name to array
+  set_fact:
+    addnldisklist: "{{addnldisklist}}+['{{ addnldiskname|last }}']"

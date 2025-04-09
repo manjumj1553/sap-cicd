@@ -1,0 +1,125 @@
+# Copyright 2021 Google LLC
+#
+# Licensed under the Apache License, Version 2.0 (the "License");
+# you may not use this file except in compliance with the License.
+# You may obtain a copy of the License at
+#
+#     https://www.apache.org/licenses/LICENSE-2.0
+#
+# Unless required by applicable law or agreed to in writing, software
+# distributed under the License is distributed on an "AS IS" BASIS,
+# WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+# See the License for the specific language governing permissions and
+# limitations under the License.
+
+- name: include storage role
+  include_role:
+    name: storage
+  vars:
+    disks: '{{ sap_nw_disks_ers }}'
+    logvols: '{{ sap_nw_logvols_ers }}'
+
+- name: ensure pre-requisite folders has right permissions
+  file:
+    path: "{{ item }}"
+    mode: 0755
+    state: directory
+  with_items:
+    - /hana
+    - /var/log
+    - /var/log/cluster
+    - /var/log/pacemaker
+    - /var/log/hawk
+    - /var/log/crmsh
+
+- name: ensure /tmp has right permissions
+  file:
+    path: /tmp
+    mode: 0777
+    state: directory
+
+- name: ensure pre-requisite files are present
+  file:
+    path: "{{ item }}"
+    state: touch
+  with_items:
+    - /var/log/cluster/corosync.log
+    - /var/log/pacemaker/pacemaker.log
+    - /var/log/crmsh/crmsh.log
+
+- name: ensure pre-requisite ownership present 
+  file:
+    path: "{{ item }}"
+    owner: hacluster
+    group: haclient
+    state: directory
+    recurse: yes
+  with_items:
+    - /var/log/pacemaker
+    - /var/log/hawk
+
+- name: include nfs-client role
+  include_role:
+    name: nfs-client
+  vars:
+    nfs_client_mounts: '{{ sap_nw_nfsvols_scs }}'
+    nfs_client_mode: autofs
+    nfs_client_create_src_dirs: false
+
+- name: create source nfs ers source dirs
+  include_role:
+    name: nfs-client
+    tasks_from: makedirs
+  vars:
+    nfs_client_mounts: '{{ sap_nw_nfsvols_ers_dirs }}'
+    nfs_client_source: '{{ sap_nw_nfs_src }}'
+
+- name: mount and persist ers filesystems
+  mount:
+    path: '{{ item.mountpoint }}'
+    fstype: nfs
+    src: '{{ item.source }}'
+    opts: 'rw,rsize=65536,wsize=65536,hard,vers=3,tcp,intr,timeo=18,retrans=200'
+    state: mounted
+  loop:
+    - source: '{{ sap_nw_ers_nfs_mount_src }}'
+      mountpoint: '{{ sap_nw_ers_nfs_mount_dest }}'
+
+- name: ensure permissions are correct on ers/scs mount points
+  file:
+    path: '{{ item.mountpoint }}'
+    owner: '{{ item.owner | default("root") }}'
+    group: '{{ item.group | default("root") }}'
+    mode: '{{ item.mode | default("0755") }}'
+    state: directory
+  loop:
+    - mountpoint: '{{ sap_nw_ers_nfs_mount_dest }}'
+      owner: '{{ sap_nw_sidadm_uid }}'
+      group: '{{ sap_sapsys_gid }}'
+    - mountpoint: '{{ sap_nw_ascs_nfs_mount_dest }}'
+      owner: '{{ sap_nw_sidadm_uid }}'
+      group: '{{ sap_sapsys_gid }}'
+  when: |
+    'owner' in item or 'group' in item or 'mode' in item
+
+- name: include nw-pre role
+  include_role:
+    name: nw-pre
+  vars:
+    sap_product_and_version: '{{ sap_nw_product_and_version }}'
+
+- name: include sapinst role
+  include_role:
+    name: sapinst
+  vars:
+    sap_product_id: '{{ sap_product_vars[sap_nw_product_and_version].ers_product_id }}'
+    sap_sapinst_extra_args: SAPINST_USE_HOSTNAME={{ sap_nw_ers_virtual_host }}
+    sap_sapinst_swpm_path: '{{ sap_product_vars[sap_nw_product_and_version].swpm_path }}'
+    sap_sapinst_template: '{{ sap_product_vars[sap_nw_product_and_version].ers_sapinst_template | default("inifile_ers.params") }}'
+    sap_sapinst_nw: true
+
+- name: include post-deploy role
+  include_role:
+    name: post-deploy
+  vars:
+    sap_ensa_version: "{{ sap_product_vars[sap_nw_product_and_version].ensa_version }}"

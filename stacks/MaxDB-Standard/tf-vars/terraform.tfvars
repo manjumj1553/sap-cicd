@@ -1,0 +1,27 @@
+project_id                      = "sap-iac-test"
+zone                            = "us-central1-a"
+subnetwork                      = "db-central"
+subnetwork_project              = "sap-iac-test"
+source_image_name               = "rhel-8-8-sap-v20241210"
+source_image_project            = "rhel-sap-cloud"
+gce_ssh_user                    = "mahekar"
+gce_ssh_pub_key_file            = "~/.ssh/id_rsa.pub"
+sap_maxdb_instance_name         = "uschxpmdb01"
+sap_maxdb_instance_ip           = "10.5.0.10"
+sap_maxdb_instance_type         = "n1-standard-4"
+sap_maxdb_use_public_ip         = false
+sap_maxdb_boot_disk_size        = 50
+sap_maxdb_boot_disk_type        = "pd-ssd"
+sap_maxdb_autodelete_boot_disk  = true
+sap_maxdb_usrsap_disk_size      = 50
+sap_maxdb_sapdb_disk_size       = 50
+sap_maxdb_maxdbbackup_disk_size = 50
+sap_maxdb_usrsap_disk_type      = "pd-ssd"
+sap_maxdb_sapdb_disk_type       = "pd-ssd"
+sap_maxdb_maxdbbackup_disk_type = "pd-ssd"
+sap_maxdb_service_account_email = "811811474621-compute@developer.gserviceaccount.com"
+sap_maxdb_network_tags          = ["sap-allow-all"]
+sap_maxdb_pd_kms_key            = "projects/sap-iac-test/locations/global/keyRings/paypal-ring/cryptoKeys/paypal-key"
+sap_maxdb_labels = {
+  app = "maxdb"
+}

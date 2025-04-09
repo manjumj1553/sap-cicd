@@ -1,0 +1,138 @@
+# Required variables
+
+# Project where resources are created.
+sap_project_id: sap-iac-test
+
+# Subnetwork for nw network interfaces.
+sap_subnetwork: db-central
+
+# Define sap_subnetwork_project_id if using a shared VPC.
+sap_subnetwork_project_id: sap-iac-test
+
+sap_source_image_name: rhel-8-8-sap-v20241210
+sap_source_image_project: rhel-sap-cloud
+
+# Terraform state bucket.
+sap_tf_state_bucket: sap-terraform-state-bg-mj
+# Prefix for state file in Terraform state bucket.
+sap_tf_state_bucket_prefix: DR-NW-HA-BWH-20250227
+
+# Zone for HANA primary, ASCS, and PAS.
+sap_primary_zone: us-central1-c
+# Zone for HANA secondary and ERS.
+sap_secondary_zone: us-central1-f
+
+# ASCS Inputs
+sap_nw_dr_ascs_instance_name: uscdrascs01
+sap_nw_dr_ascs_instance_ip: 10.5.0.112
+sap_nw_dr_ascs_instance_type: n2-standard-4
+# Disk configuration
+sap_nw_dr_ascs_boot_disk_size: 50
+sap_nw_dr_ascs_boot_disk_type: pd-ssd
+# Delete boot disks automatically.
+sap_nw_dr_ascs_autodelete_boot_disk: true         # Do not change
+sap_nw_dr_ascs_usrsap_disk_size: 50
+sap_nw_dr_ascs_swap_disk_size: 30
+sap_nw_dr_ascs_usrsap_disk_type: pd-ssd
+sap_nw_dr_ascs_swap_disk_type: pd-ssd
+# Service account names for NetWeaver instances.
+sap_nw_dr_ascs_service_account_email: 811811474621-compute@developer.gserviceaccount.com 
+sap_nw_dr_ascs_network_tags: ["sap-allow-all"]
+sap_nw_dr_ascs_pd_kms_key: 'projects/sap-iac-test/locations/global/keyRings/paypal-ring/cryptoKeys/paypal-key'
+sap_nw_dr_ascs_labels:
+  env: prod
+sap_nw_dr_ascs_create_instance_group: true         # Do not change
+sap_nw_dr_ascs_instance_group_name: paypal-sap-dr-instgrp-ascs-001
+sap_nw_dr_ascs_alias_ip:                           # Do not provide alias ip
+sap_nw_dr_ascs_named_ports:
+  - name: "paypal-sap-dr-ascs-health-check-port"
+    port: 60000
+
+
+# ERS Inputs
+sap_nw_dr_ers_instance_name: uscdrers01
+sap_nw_dr_ers_instance_ip: 10.5.0.113
+sap_nw_dr_ers_instance_type: n2-standard-4
+# Disk configuration
+sap_nw_dr_ers_boot_disk_size: 50
+sap_nw_dr_ers_boot_disk_type: pd-ssd
+# Delete boot disks automatically.
+sap_nw_dr_ers_autodelete_boot_disk: true            # Do not change
+sap_nw_dr_ers_usrsap_disk_size: 50
+sap_nw_dr_ers_swap_disk_size: 30
+sap_nw_dr_ers_usrsap_disk_type: pd-ssd
+sap_nw_dr_ers_swap_disk_type: pd-ssd
+# Service account names for NetWeaver instances.
+sap_nw_dr_ers_service_account_email: 811811474621-compute@developer.gserviceaccount.com 
+sap_nw_dr_ers_network_tags: ["sap-allow-all"]
+sap_nw_dr_ers_pd_kms_key: 'projects/sap-iac-test/locations/global/keyRings/paypal-ring/cryptoKeys/paypal-key'
+sap_nw_dr_ers_labels:
+  env: prod
+sap_nw_dr_ers_create_instance_group: true            # Do not change
+sap_nw_dr_ers_instance_group_name: paypal-sap-dr-instgrp-ers-001
+sap_nw_dr_ers_alias_ip:                              # Do not provide alias ip
+sap_nw_dr_ers_named_ports: 
+  - name: "paypal-sap-dr-ers-health-check-port"
+    port: 60001
+
+
+network_project: sap-iac-test
+sap_nw_dr_ascs_ilb_name: paypal-sap-dr-ilb-ascs-001
+sap_nw_dr_ascs_health_check_port: 60000
+sap_nw_dr_ascs_health_check_port_name: paypal-sap-dr-ascs-health-check-port
+sap_nw_dr_ascs_ilb_ip_address: 10.5.0.114
+sap_nw_dr_ascs_health_check_name: paypal-sap-dr-hlthchk-ascs-001
+sap_nw_dr_ascs_backend_service_name: paypal-sap-dr-backend-ascs-001
+
+sap_nw_dr_ers_ilb_name: paypal-sap-dr-ilb-ers-001
+sap_nw_dr_ers_health_check_port: 60001
+sap_nw_dr_ers_health_check_port_name: paypal-sap-dr-ers-health-check-port
+sap_nw_dr_ers_ilb_ip_address: 10.5.0.116
+sap_nw_dr_ers_health_check_name: paypal-sap-dr-hlthchk-ers-001
+sap_nw_dr_ers_backend_service_name: paypal-sap-dr-backend-ers-001
+
+sap_ssh_user: mahekar 
+sap_host_fqdn: "paypal.com"
+sap_nw_ascs_virtual_host: uscbwhascsvip
+sap_nw_ers_virtual_host: uscbwhersvip
+sap_hana_virtual_host: usch8phdb
+
+# RHEL 8 ILB
+sap_hana_instance_ip: 10.5.0.108
+
+sap_nw_daaadm_uid: 1033
+sap_nw_sidadm_uid: 1025
+sap_nw_sapadm_uid: 1032
+sap_sapsys_gid: 1025
+sap_nw_sapsys_gid: 1025
+
+# Bucket containing installation files for NetWeaver.
+sap_nw_install_files_bucket: sap-deployment-media
+
+# Secret ID of for HANA password from Google Secrets Manager and SAP requires atleast one capital letter.
+sap_hana_gsm_secret_id: hana_default_pass
+
+# Secret ID of for NW password from Google Secrets Manager and SAP requires atleast one capital letter.
+sap_nw_gsm_secret_id: hana_default_pass
+
+# Secret ID of for DAA password from Google Secrets Manager and SAP requires atleast one capital letter.
+sap_daa_gsm_secret_id: hana_default_pass 
+
+# DR NFS using one server, for example when using Cloud FileStore.
+sap_nw_nfs_src: 10.167.224.4:/paypalvol1/DR1
+
+# Create source directories on NFS server, only if sap_nw_nfs_src is set.
+sap_nw_create_nfs_source_dirs: true
+
+# SIDs for NetWeaver.
+sap_nw_sid: BWH
+sap_hana_sid: H8P
+
+# Instance numbers for NetWeaver. Note that these must be quoted strings.
+sap_nw_ascs_instance_number: '00'
+sap_nw_ers_instance_number: '10'
+sap_hana_instance_number: '00'
+sap_nw_ascs_install_web_dispatcher: false
+sap_nw_product_and_version: 'BW4HANA/2023'
+sap_hana_password: Paypal12345
+sap_nw_password: Paypal12345

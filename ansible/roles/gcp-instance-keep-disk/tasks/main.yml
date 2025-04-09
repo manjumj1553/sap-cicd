@@ -1,0 +1,9 @@
+- name: update the instance level disks to keep disk flags
+  shell: |
+    # Get instances with the label
+    dvcnames=$(gcloud compute instances describe {{ sap_instance_name }} --zone {{ sap_instance_zone }} --format='value(disks.deviceName)' | tr ';' '\n')
+    # Loop through the devicenames 
+    for devicename in $dvcnames; do
+      # set the flag at instance
+      gcloud compute instances set-disk-auto-delete {{ sap_instance_name }} --no-auto-delete --device-name $devicename --zone {{ sap_instance_zone }} 
+    done

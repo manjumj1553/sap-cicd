@@ -1,0 +1,106 @@
+# Copyright 2021 Google LLC
+#
+# Licensed under the Apache License, Version 2.0 (the "License");
+# you may not use this file except in compliance with the License.
+# You may obtain a copy of the License at
+#
+#     https://www.apache.org/licenses/LICENSE-2.0
+#
+# Unless required by applicable law or agreed to in writing, software
+# distributed under the License is distributed on an "AS IS" BASIS,
+# WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+# See the License for the specific language governing permissions and
+# limitations under the License.
+
+- name: ensure that a known product version is defined
+  assert:
+    that: sap_maxdb_product_and_version in sap_product_vars
+    fail_msg: 'sap_maxdb_product and sap_maxdb_product_version must match one of {{ sap_product_vars.keys() | join(", ") }}'
+
+- name: include base role
+  include_role:
+    name: base
+
+- name: include zypper patching role
+  include_role:
+    name: zypper-package-update
+  when: ansible_os_family == "Suse"
+
+- name: Modify localhost entry in line in /etc/hosts
+  lineinfile:
+    path: /etc/hosts
+    line: "::1 localhost"
+    insertafter: '^127\.0\.0\.1'
+    state: present
+
+- name: update /etc/hosts file with fqdn entries for replacing
+  replace:
+    path: /etc/hosts
+    regexp: "{{ item.old }}"
+    replace: "{{ item.new }}"
+  loop:
+    - { old: "{{ sap_zone }}.c.{{ sap_project_id }}.internal", new: "{{ sap_host_fqdn }}" }
+
+- name: include storage role
+  include_role:
+    name: storage
+  vars:
+    disks: '{{ sap_maxdb_disks }}'
+    logvols: '{{ sap_maxdb_logvols }}'
+
+- name: update /etc/idmapd.conf file NetappVolume entry settings
+  replace:
+    path: /etc/idmapd.conf
+    regexp: "localdomain"
+    replace: "defaultv4iddomain.com"
+
+- name: restart nfsidmap service
+  command: nfsidmap -c
+
+- name: include sapmnt nfs role
+  include_role:
+    name: sapmnt-nfs-maxdb
+
+- name: include nw-pre role
+  include_role:
+    name: nw-pre-maxdb
+  vars:
+    sap_product_and_version: '{{ sap_maxdb_product_and_version }}'
+
+- name: Identify EXE archive install file
+  find:
+    paths: "{{ sap_maxdb_kernel_files }}"
+    patterns: "*.ZIP"
+  register: zip_install_file
+
+- name: Extract ZIP Archive
+  unarchive:
+    src: "{{ zip_install_file.files.0.path }}"
+    dest: "{{ sap_maxdb_kernel_files }}"
+    remote_src: yes
+  register: sap_csdb_deployment_register_extractzip
+
+- name: include sapinst role for content server
+  include_role:
+    name: sapinst-maxdb
+  vars:
+    sap_product_id: '{{ sap_product_vars[sap_maxdb_product_and_version].onehost_sapcs_product_id }}'
+    sap_sapinst_state_file: /root/.ansible-state/run-sapinst-sapcs
+    sap_sapinst_swpm_path: '{{ sap_product_vars[sap_maxdb_product_and_version].swpm_path }}'
+    sap_sapinst_template: '{{ sap_product_vars[sap_maxdb_product_and_version].onehost_sapinst_sapcs_template | default("inifile_onehost_sapcs.params") }}'
+    sap_sapinst_maxdb: true
+
+- name: include sapinst role for maxdb
+  include_role:
+    name: sapinst-maxdb
+  vars:
+    sap_product_id: '{{ sap_product_vars[sap_maxdb_product_and_version].onehost_sapdb_product_id }}'
+    sap_sapinst_state_file: /root/.ansible-state/run-sapinst-sapdb
+    sap_sapinst_swpm_path: '{{ sap_product_vars[sap_maxdb_product_and_version].swpm_path }}'
+    sap_sapinst_template: '{{ sap_product_vars[sap_maxdb_product_and_version].onehost_sapinst_sapdb_template | default("inifile_onehost_sapdb.params") }}'
+    sap_sapinst_maxdb: true
+
+- name: include nw-monitoring agent role
+  include_role:
+    name: gcp-sap-agent
+  when: ansible_os_family == "Suse"

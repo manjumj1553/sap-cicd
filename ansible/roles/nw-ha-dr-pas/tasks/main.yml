@@ -1,0 +1,80 @@
+# Copyright 2021 Google LLC
+#
+# Licensed under the Apache License, Version 2.0 (the "License");
+# you may not use this file except in compliance with the License.
+# You may obtain a copy of the License at
+#
+#     https://www.apache.org/licenses/LICENSE-2.0
+#
+# Unless required by applicable law or agreed to in writing, software
+# distributed under the License is distributed on an "AS IS" BASIS,
+# WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+# See the License for the specific language governing permissions and
+# limitations under the License.
+
+- name: ensure that a known product version is defined
+  assert:
+    that: sap_nw_product_and_version in sap_product_vars
+    fail_msg: 'sap_nw_product and sap_nw_product_version must match one of {{ sap_product_vars.keys() | join(", ") }}'
+
+- name: update autofs entries in /etc/auto.sap
+  include_tasks: '{{ role_path }}/tasks/autofs.yml'
+  vars:
+    nfs_client_mounts: '{{ sap_nw_nfsvols_pas }}'
+
+- name: Ensure configuration lines are present in ifcfg-eth0 of Sles
+  lineinfile:
+    path: /etc/sysconfig/network/ifcfg-eth0
+    line: "{{ item }}"
+    state: present
+  loop:
+    - "IPADDR_1='{{ sap_nw_pas_alias_ip }}/32'"
+    - "LABEL_1='aliase'"
+  when: ansible_os_family == "Suse"
+
+- name: Ensure NetworkManager connection profile is configured
+  shell: |
+    systemctl enable NetworkManager
+    systemctl restart NetworkManager
+    nmcli con mod "System ens4" +ip4 '{{ sap_nw_pas_alias_ip }}/32'
+    nmcli conn up "System ens4"
+  when: |
+    ansible_os_family == 'RedHat'
+
+- name: Restart network service
+  command: systemctl restart network
+  when: ansible_os_family == "Suse"
+
+- name: include storage role
+  include_role:
+    name: storage
+  vars:
+    disks: '{{ sap_nw_disks_pas }}'
+    logvols: '{{ sap_nw_logvols_pas }}'
+
+- name: include hosts-file role
+  include_role:
+    name: hosts-file
+  vars:
+    hosts_file_peers: '{{ ansible_play_hosts }}'
+
+- name: update /etc/hosts file with fqdn entries
+  replace:
+    path: /etc/hosts
+    regexp: "{{ item.old }}"
+    replace: "{{ item.new }}"
+  loop:
+    - { old: "{{ sap_nw_zone }}.c.{{ sap_project_id }}.internal", new: "{{ sap_host_fqdn }}" }
+
+- block:
+  - name: Ensure Key,DAT files copied to new DR pas system
+    command: mv "/home/{{ sap_nw_user }}/.hdb/{{ primary_sap_pas_instance_name }}" "/home/{{ sap_nw_user }}/.hdb/{{ sap_pas_instance_name }}"
+  when: (sap_is_pas | bool) and ( sap_is_pas is defined )
+  
+# - name: Regularize the HDBUserStore entries
+#   shell: >-
+#     source '/home/{{ sap_nw_user }}/.profile' &&
+#     hdbuserstore SET DEFAULT {{ sap_hana_virtual_host | quote }}:30013@{{ sap_hana_sid | quote}} SAPHANADB {{ sap_nw_password | quote}}
+#   become: true
+#   become_user: '{{ sap_nw_user }}'
+#   when: (sap_is_pas | bool) and ( sap_is_pas is defined )

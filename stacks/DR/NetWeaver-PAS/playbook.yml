@@ -1,0 +1,74 @@
+# Copyright 2021 Google LLC
+#
+# Licensed under the Apache License, Version 2.0 (the "License");
+# you may not use this file except in compliance with the License.
+# You may obtain a copy of the License at
+#
+#     https://www.apache.org/licenses/LICENSE-2.0
+#
+# Unless required by applicable law or agreed to in writing, software
+# distributed under the License is distributed on an "AS IS" BASIS,
+# WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+# See the License for the specific language governing permissions and
+# limitations under the License.
+
+- name: PAS Snapshotlist 
+  hosts: 127.0.0.1
+  connection: local
+  roles:
+    - role: snapshot-list
+      vars:
+         - {instance_type: "pas", instance_list: ["{{ primary_sap_pas_instance_name }}"], dzone: "{{ primary_sap_primary_zone }}"} 
+
+- name: SAP NW deploy
+  hosts: 127.0.0.1
+  connection: local
+  roles:
+  - role: forminator
+    vars:
+      sap_tf_project_path: './tf'
+      sap_state: '{{ state | default("present") }}'
+      sap_hana_backint_bucket_name: '{{ sap_hana_backint_bucket_name | default("") }}'
+      fqdn_name: '{{ sap_host_fqdn }}'
+      sap_tf_variables:
+        project_id: '{{ sap_project_id }}'
+        subnetwork: '{{ sap_subnetwork }}'
+        subnetwork_project: '{{ sap_subnetwork_project_id | default("") }}'
+        source_image_name: '{{ sap_source_image_name}}'
+        source_image_project: '{{ sap_source_image_project }}'
+        sap_nw_dr_pas_zone: '{{ sap_nw_dr_pas_zone }}'
+        sap_nw_dr_pas_instance_name: '{{ sap_nw_dr_pas_instance_name | default("test-pas-instance") }}'
+        sap_nw_dr_pas_instance_ip: '{{ sap_nw_dr_pas_instance_ip }}'
+        sap_nw_dr_pas_instance_type: '{{ sap_nw_dr_pas_instance_type | default("n2d-standard-8") }}'
+        sap_nw_dr_pas_boot_disk_size: '{{ sap_nw_dr_pas_boot_disk_size | default(30) }}'
+        sap_nw_dr_pas_boot_disk_type: '{{ sap_nw_dr_pas_boot_disk_type | default("pd-balanced") }}'
+        sap_nw_dr_pas_autodelete_boot_disk: '{{ sap_nw_dr_pas_autodelete_boot_disk | default(true) }}'
+        sap_nw_dr_pas_usrsap_disk_size: '{{ sap_nw_dr_pas_usrsap_disk_size | default(50) }}'
+        sap_nw_dr_pas_swap_disk_size: '{{ sap_nw_dr_pas_swap_disk_size | default(30) }}'
+        sap_nw_dr_pas_usrsap_disk_type: '{{ sap_nw_dr_pas_usrsap_disk_type | default("pd-balanced") }}'
+        sap_nw_dr_pas_swap_disk_type: '{{ sap_nw_dr_pas_swap_disk_type | default("pd-balanced") }}'
+        sap_nw_dr_pas_service_account_email: '{{ sap_nw_dr_pas_service_account_email | default("{}@{}.iam.gserviceaccount.com".format(sap_nw_service_account_name | default("sap-common-sa"), sap_project_id)) }}'
+        sap_nw_dr_pas_network_tags: '{{ sap_nw_dr_pas_network_tags | default(["allow-internet-egress"]) }}'
+        sap_nw_dr_pas_pd_kms_key: '{{ sap_nw_dr_pas_pd_kms_key }}'
+        sap_nw_dr_pas_labels: '{{ sap_nw_dr_pas_labels }}'
+        sap_nw_dr_pas_create_instance_group: '{{ sap_nw_dr_pas_create_instance_group | default(false) }}'
+        sap_nw_dr_pas_instance_group_name: '{{ sap_nw_dr_pas_instance_group_name }}'
+        sap_nw_dr_pas_alias_ip: '{{ sap_nw_dr_pas_alias_ip }}'
+        sap_nw_pas_instance_map: '{{ passmap }}'
+  # - role: gcp-secrets-manager
+  tags: [nw, assertions]
+
+- name: SAP application configure
+  hosts: nw
+  become: yes
+  become_user: root  
+  roles:
+  - role: nw-ha-dr-pas
+    vars:
+      sap_hana_vip: '{{ sap_hana_instance_ip }}'
+      sap_nw_ascs_vip: '{{ sap_nw_dr_ascs_ilb_ip }}'
+      sap_nw_ers_vip: '{{ sap_nw_dr_ers_ilb_ip }}'
+      sap_nw_pas_alias_ip: '{{ sap_nw_dr_pas_alias_ip }}'
+      sap_pas_instance_name: '{{ sap_nw_dr_pas_instance_name }}'
+      sap_nw_zone: '{{ sap_nw_dr_pas_zone }}'
+  tags: [nw]

@@ -1,0 +1,191 @@
+# Copyright 2021 Google LLC
+#
+# Licensed under the Apache License, Version 2.0 (the "License");
+# you may not use this file except in compliance with the License.
+# You may obtain a copy of the License at
+#
+#     https://www.apache.org/licenses/LICENSE-2.0
+#
+# Unless required by applicable law or agreed to in writing, software
+# distributed under the License is distributed on an "AS IS" BASIS,
+# WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+# See the License for the specific language governing permissions and
+# limitations under the License.
+
+- name: ensure that a known product version is defined
+  assert:
+    that: sap_nw_product_and_version in sap_product_vars
+    fail_msg: 'sap_nw_product and sap_nw_product_version must match one of {{ sap_product_vars.keys() | join(", ") }}'
+
+- name: Run SUSE register
+  shell:
+    cmd: |
+     registercloudguest --clean; registercloudguest --force-new;sleep 60;systemctl start guestregister.service;sleep 60;
+  args:
+     executable: /bin/bash
+  when: ansible_os_family == 'Suse'
+
+- name: include base role
+  include_role:
+    name: base
+
+- name: include adjust app lb parameters
+  include_role:
+    name: app-adjust-lb-parameters
+  when: (ansible_os_family == "RedHat") and (not sap_is_pas | bool) 
+
+- name: Modify localhost entry in line in /etc/hosts
+  lineinfile:
+    path: /etc/hosts
+    line: "::1 localhost"
+    insertafter: '^127\.0\.0\.1'
+    state: present
+
+- name: include hosts-file role
+  include_role:
+    name: hosts-file
+  vars:
+    hosts_file_peers: '{{ ansible_play_hosts }}'
+
+- name: update /etc/hosts file with fqdn entries
+  replace:
+    path: /etc/hosts
+    regexp: "{{ item.old }}"
+    replace: "{{ item.new }}"
+  loop:
+    - { old: "{{ sap_ascs_instance_name }}.c.{{ sap_project_id }}.internal", new: "{{ sap_ascs_instance_name }}.{{ sap_host_fqdn }}" }
+    - { old: "{{ sap_ers_instance_name }}.c.{{ sap_project_id }}.internal", new: "{{ sap_ers_instance_name }}.{{ sap_host_fqdn }}" }
+    - { old: "{{ sap_pas_instance_name }}.c.{{ sap_project_id }}.internal", new: "{{ sap_pas_instance_name }}.{{ sap_host_fqdn }}" }
+
+- name: update /etc/idmapd.conf file NetappVolume entry settings
+  replace:
+    path: /etc/idmapd.conf
+    regexp: "localdomain"
+    replace: "defaultv4iddomain.com"
+
+- name: restart nfsidmap service
+  command: nfsidmap -c
+
+- name: wait for zypper process to release locks 
+  shell: |
+      sleep 60; while true; do unset result; result=$(find /var/log -mmin -1 -name zypper.log); if [[ -z "$result" ]]; then break; fi; sleep 30; done;
+  args:
+     executable: /bin/bash
+  when: ansible_os_family == 'Suse'
+
+- name: updating the crmsh cluster package
+  command: zypper up -y crmsh
+  when: |
+    ansible_os_family == 'Suse'
+  ignore_errors: true
+
+- name: updating the fence agent package
+  command: zypper up -y fence-agents
+  when: |
+    ansible_os_family == 'Suse'
+  ignore_errors: true
+
+- name: include ops-agent role
+  include_role:
+    name: gcp-ops-agent-install
+  vars:
+    agent_type: ops-agent
+  when: ansible_os_family == "Suse"
+
+- name: include sap-nw-monitoring role
+  include_role:
+    name: gcp-sap-agent
+  when: ansible_os_family == "Suse"
+
+- name: update /etc/hosts file with fqdn entries for replacing
+  replace:
+    path: /etc/hosts
+    regexp: "{{ item.old }}"
+    replace: "{{ item.new }}"
+  loop:
+    - { old: "{{ sap_primary_zone}}.c.{{ sap_project_id }}.internal", new: "{{ sap_host_fqdn }}" }
+    - { old: "{{ sap_secondary_zone}}.c.{{ sap_project_id }}.internal", new: "{{ sap_host_fqdn }}" }
+    
+- name: Ensure group "sapsys" exists with correct gid
+  group:
+    name: sapsys
+    state: present
+    gid: '{{ sap_sapsys_gid }}'
+    
+- name: include ASCS Tasks
+  include_tasks: '{{ role_path }}/tasks/ascs.yml'
+  when: sap_is_ascs | bool
+
+- name: include ERS Tasks
+  include_tasks: '{{ role_path }}/tasks/ers.yml'
+  when: sap_is_ers | bool
+
+- name: include pacemaker role
+  include_role:
+    name: pacemaker-netweaver
+  vars:
+    sap_cluster_user_password: '{{ sap_nw_cluster_user_password }}'
+    sap_ensa_version: '{{ sap_product_vars[sap_nw_product_and_version].ensa_version }}'
+    sap_primary_instance: '{{ sap_nw_ascs_instance_name }}'
+    sap_primary_instance_ip: '{{ sap_nw_ascs_private_ip }}'
+    sap_secondary_instance: '{{ sap_nw_ers_instance_name }}'
+  when: sap_is_scs | bool
+
+- name: include fix for autofs
+  include_tasks: '{{ role_path }}/tasks/autofs-fix.yml'
+  when: sap_is_scs | bool
+
+- name: include PAS Tasks
+  include_tasks: '{{ role_path }}/tasks/pas.yml'
+  when: sap_is_pas | bool
+
+- name: cleanup fstab entries for NW systems
+  lineinfile:
+    path: /etc/fstab
+    state: absent
+    regexp: "{{ item }}"
+  with_items:
+    - SCS
+    - ERS
+  when: (not sap_is_pas | bool)
+
+- name: update /etc/hosts file with fqdn entries for replacing
+  replace:
+    path: /etc/hosts
+    regexp: "{{ item.old }}"
+    replace: "{{ item.new }}"
+  loop:
+    - { old: "{{ sap_primary_zone}}.c.{{ sap_project_id }}.internal", new: "{{ sap_host_fqdn }}" }
+    - { old: "{{ sap_secondary_zone}}.c.{{ sap_project_id }}.internal", new: "{{ sap_host_fqdn }}" }
+    
+- name: include gcloud sdk update
+  include_role:
+    name: gcp-gcloud-update
+  when: ansible_os_family == "Suse"
+
+- name: Cluster in maintenance mode (ASCS)
+  command: pcs property set maintenance-mode=true
+  when: (sap_is_ascs | bool) and (ansible_os_family == 'RedHat')
+
+- name: Update DEFAULT.PFL
+  blockinfile:
+    path: /sapmnt/{{ sap_nw_sid }}/profile/DEFAULT.PFL
+    block: |
+      service/halib = $(DIR_CT_RUN)/saphascriptco.so
+      service/halib_cluster_connector = /usr/bin/sap_cluster_connector
+    create: yes
+  become: yes
+  when: (sap_is_ascs | bool) and (ansible_os_family == 'RedHat')
+
+- name: PAS StopSystem
+  shell: |
+    . ${HOME}/.sapenv.sh
+    sapcontrol -nr {{ sap_nw_pas_instance_number }} -function StopSystem
+  become_user: "{{ sap_nw_user }}"
+  args:
+    executable: /bin/sh
+  when: (sap_is_pas | bool) and (ansible_os_family == 'RedHat')
+
+- name: include gcp misc installations
+  include_role:
+    name: gcp-misc-adjustments

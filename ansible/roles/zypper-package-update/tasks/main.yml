@@ -1,0 +1,11 @@
+- name: update Zypper Suse packages
+  zypper:
+    name: "{{ item }}"
+    state: latest
+    update_cache: yes
+  register: result
+  retries: "{{ package_retries_cnt }}"
+  until: result is succeeded
+  delay: "{{ package_retries_delay }}"
+  when: ansible_os_family == 'Suse'
+  with_items: "{{ update_package_list }}"

@@ -1,0 +1,26 @@
+- name: setting common variables
+  vars:
+    my_idx: 0
+  set_fact:
+    bdisklist: []
+    addnldisklist: []
+    bmessage: ""
+    addnldiskname: ""
+    standardaasmap: []
+
+- name: get info disk snapshots
+  include_tasks: disk-snaplist.yml 
+  vars:
+    zone: '{{ dzone }}'
+  with_items: "{{ instance_list }}"
+
+- name: merge boot disk and additional disk values for instance type category
+  set_fact:
+    standardaasmap: '{{ standardaasmap + [{"instancename" : item,"bdisk" : bdisklist[my_idx],"addnldisk" : addnldisklist[my_idx]}] }}'
+  loop: "{{ instance_list }}"
+  loop_control:
+    index_var: my_idx
+
+- debug:
+    msg: 
+      - "{{ standardaasmap }}"

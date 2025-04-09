@@ -1,0 +1,13 @@
+ContentServerSapdb.fCsName = {{ sap_maxdb_sid }}
+SDB.useMaxDBArchive = false
+SdbInstanceDialogs.CPU_number = {{ sap_maxdb_cpu_number }}
+SdbInstanceDialogs.DB_sessions = {{ sap_maxdb_sessions }}
+SdbInstanceDialogs.autoextend = true
+SdbInstanceDialogs.dbmem = {{ sap_maxdb_memory }}
+SdbInstanceDialogs.minlogsize = {{ sap_maxdb_log_size }} 
+SdbInstanceDialogs.sapdataFolder = sapdata
+SdbInstanceDialogs.saplogFolder = saplog
+Sdb_DBUser.dbaPassword = {{ sap_maxdb_dba_user_password }}
+Sdb_DBUser.dbmPassword = {{ sap_maxdb_dbm_user_password }}
+Sdb_OSUser_Dialogs.SQD_DBSID_Password = {{ sap_maxdb_sqd_user_password }}
+SAPINST.CD.PACKAGE.RDBMS = {{ sap_maxdb_kernel_files }}/MaxDB_7.9___SP10_Build_05_/

@@ -1,0 +1,69 @@
+# Copyright 2021 Google LLC
+#
+# Licensed under the Apache License, Version 2.0 (the "License");
+# you may not use this file except in compliance with the License.
+# You may obtain a copy of the License at
+#
+#     https://www.apache.org/licenses/LICENSE-2.0
+#
+# Unless required by applicable law or agreed to in writing, software
+# distributed under the License is distributed on an "AS IS" BASIS,
+# WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+# See the License for the specific language governing permissions and
+# limitations under the License.
+
+sap_project_id: ccg24-hrzana-fin-gls4-stg
+sap_nw_subnetwork: ccg24-us-west4-hrzana-2
+sap_subnetwork_project_id: pp-p-us-west4-xpn
+sap_source_image_name: pp-sap-west-rhel
+sap_source_image_project: pp-prod-etx-images
+sap_nw_instance_type: n2-standard-2
+sap_nw_service_account_email: lsvc-p-fin-gls4-stg@ccg24-hrzana-fin-gls4-stg.iam.gserviceaccount.com
+sap_nw_pd_kms_key: 'projects/pp-prodcos-cmek-9519/locations/us-west4/keyRings/prod-pp-keyring-uswest4/cryptoKeys/prod-pp-vmenc-key-us-west4'
+
+sap_tf_state_bucket: pp_ccg24_gls4_stg_state
+sap_tf_state_bucket_instance_prefix: wedisp_dz1
+
+sap_nw_boot_disk_size: 100
+sap_nw_usrsap_disk_size: 100
+sap_nw_additional_disk_type: pd-balanced
+
+sap_nw_primary_instance_name : sapdz1asu01
+sap_nw_primary_instance_ip : 10.174.90.171
+sap_nw_primary_zone : us-west4-a
+sap_nw_primary_instance_group_name : dz1-umgrp1
+sap_nw_primary_labels :
+  env : dv
+sap_nw_primary_sid: DZ1
+sap_nw_primary_instance_number: "00"
+sapmnt_primary_nfs_server_path: 192.168.114.21:/sap-gcp-ax1/webdispa1
+
+sap_nw_secondary_instance_name : sapdz1asu02
+sap_nw_secondary_instance_ip : 10.174.90.172
+sap_nw_secondary_zone : us-west4-b
+sap_nw_secondary_instance_group_name : dz1-umgrp2
+sap_nw_secondary_labels :
+  env : dv
+sap_nw_secondary_sid: DZ1
+sap_nw_secondary_instance_number: "00"
+sapmnt_secondary_nfs_server_path: 192.168.114.21:/sap-gcp-ax1/webdispa2
+
+sap_host_fqdn: "gcp.fin.paypalinc.com"
+sap_nw_install_files_bucket: gls4_stg_build
+sap_nw_gsm_secret_id: hana_default_pass
+sap_nw_backint_install: false
+sap_ssh_user: patchmanager
+
+sap_tf_state_bucket_lb_prefix: wedisp_dz1_lb
+sap_lb_tf_version: 0.14.7
+env: dv
+glb_address_1: 10.174.90.173
+zone_a: us-west4-a
+web_port_name: webdisp-dz1-hc
+
+sap_nw_sidadm_uid: 2000
+sap_nw_sapadm_uid: 2001
+sap_sapsys_gid: 79
+sap_sapinst_nw: true
+sap_nw_product_and_version: 'WebDispatcher/793'
+sap_nw_password: Paypal12345

@@ -1,0 +1,244 @@
+# Copyright 2021 Google LLC
+#
+# Licensed under the Apache License, Version 2.0 (the "License");
+# you may not use this file except in compliance with the License.
+# You may obtain a copy of the License at
+#
+#     https://www.apache.org/licenses/LICENSE-2.0
+#
+# Unless required by applicable law or agreed to in writing, software
+# distributed under the License is distributed on an "AS IS" BASIS,
+# WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+# See the License for the specific language governing permissions and
+# limitations under the License.
+
+- block:
+  - name: write cluster configuration
+    command: >-
+      pcs cluster setup --name {{ sap_cluster_name }} --local --force
+      {{ sap_primary_instance }} {{ sap_secondary_instance }}
+    args:
+      creates: /etc/corosync/corosync.conf
+
+  - name: start and enable services
+    service:
+      name: '{{ item }}'
+      state: started
+      enabled: true
+    loop:
+    - corosync.service
+    - pacemaker.service
+    - pcsd.service
+
+  - command: timeout 5 pcs cluster auth
+    register: pcs_command_status
+    changed_when: false
+    failed_when: false
+
+  - name: set cluster authentication
+    command: >-
+      pcs cluster auth {{ sap_primary_instance }} {{ sap_secondary_instance }}
+      -u {{ sap_cluster_user }} -p {{ sap_cluster_user_password }}
+    no_log: true
+    when: >-
+      sap_primary_instance + ': Already authorized' not in pcs_command_status.stdout and
+      sap_secondary_instance + ': Already authorized' not in pcs_command_status.stdout
+  when:
+  - ansible_os_family == 'RedHat'
+  - pacemaker_major_version | int < 2
+
+- block:
+  - name: update pcs and pcsd config to fix the pcsd startup issue
+    lineinfile:
+      path: '{{ item.path }}'
+      # search_string: "{{ item.oldline }}"
+      regexp: "{{ item.oldline }}"
+      line: "{{ item.newline }}"
+      backup: yes
+      state: present
+    with_items:
+      - { path: "/usr/sbin/pcs", oldline: "#!/usr/libexec/platform-python -Es", newline: "#!/usr/libexec/platform-python" }
+      - { path: "/usr/sbin/pcsd", oldline: "#!/usr/libexec/platform-python -Es", newline: "#!/usr/libexec/platform-python" }
+
+  - name: start and enable pcsd
+    service:
+      name: pcsd.service
+      state: started
+      enabled: true
+
+  - command: timeout 5 pcs cluster auth
+    register: pcs_command_status
+    changed_when: false
+    failed_when: false
+    
+  - name: set cluster authentication
+    command: >
+      pcs host auth {{ sap_primary_instance }} {{ sap_secondary_instance }}
+      -u {{ sap_cluster_user }} -p {{ sap_cluster_user_password }}
+    no_log: true
+    run_once: true
+    when: >-
+      ('Unable to read Corosync configuration' in pcs_command_status.stderr) or
+      ((sap_primary_instance + ': Already authorized' not in pcs_command_status.stdout) and
+       (sap_secondary_instance + ': Already authorized' not in pcs_command_status.stdout))
+
+  - name: write cluster configuration
+    command: >-
+      pcs cluster setup {{ sap_cluster_name }} --start
+      {{ sap_primary_instance }} {{ sap_secondary_instance }}
+    args:
+      creates: /etc/corosync/corosync.conf
+    run_once: true
+
+  - name: start and enable corosync and pacemaker
+    service:
+      name: '{{ item }}'
+      state: started
+      enabled: true
+    loop:
+    - corosync.service
+    - pacemaker.service
+    when: sap_system_type == 'nw'
+
+  - name: configure corosync for hana
+    template:
+      src: etc/corosync/corosync.conf.hana.j2
+      dest: /etc/corosync/corosync.conf
+      mode: 0644
+      group: root
+    when: sap_system_type == 'hana'
+
+  - name: Sync cluster configuration 
+    command: pcs cluster sync corosync
+    when: sap_system_type == 'hana'
+
+  - name: Enable cluster configuration 
+    command: pcs cluster enable --all
+    when: sap_system_type == 'hana'
+
+  - name: Start cluster configuration 
+    command: pcs cluster start --all
+    when: sap_system_type == 'hana'
+
+  - name: Pause for 180 seconds to confgure cluster
+    wait_for:
+      timeout: 180
+
+  - name: Configure cluster for defaults
+    command: pcs resource defaults update resource-stickiness=1000
+    when: sap_system_type == 'hana'
+
+  - name: Update cluster migration-threshold 
+    command: pcs resource defaults update migration-threshold=5000
+    when: sap_system_type == 'hana'
+      
+  - name: Update timeout cluster configuration 
+    command: pcs resource op defaults update timeout=600s
+    when: sap_system_type == 'hana'
+  when:
+  - ansible_os_family == 'RedHat'
+  - pacemaker_major_version | int >= 2
+
+- block:
+  - name: generate corosync key
+    command: corosync-keygen
+    args:
+      creates: /etc/corosync/authkey
+
+  - name: initialize cluster on primary
+    command: ha-cluster-init -y csync2
+    args:
+      creates: /etc/csync2/key_hagroup
+
+  - name: write cluster configuration on primary
+    template:
+      src: etc/corosync/corosync.conf.j2
+      dest: /etc/corosync/corosync.conf
+      mode: 0644
+      owner: root
+      group: root
+
+  - name: create systemd dropin directory for pacemaker
+    file:
+      path: /etc/systemd/system/pacemaker.service.d
+      mode: 0755
+      state: directory
+
+  - name: create systemd dropin for pacemaker environment
+    copy:
+      dest: /etc/systemd/system/pacemaker.service.d/python.conf
+      mode: 0644
+      content: |
+        [Service]
+        Environment=CLOUDSDK_PYTHON={{ cloudsdk_python_export_path }}
+
+  - name: start and enable services on primary
+    systemd:
+      name: '{{ item }}'
+      state: started
+      enabled: true
+      daemon_reload: true
+    loop:
+    - corosync.service
+    - pacemaker.service
+  when: |
+    is_primary and ansible_os_family == 'Suse'
+
+- block:
+  - name: join cluster on secondary
+    command: ha-cluster-join -y -c {{ sap_primary_instance_ip }} csync2
+    args:
+      creates: /etc/corosync/corosync.conf
+    register: join_cluster_secondary
+    retries: 12
+    delay: 10
+    until: join_cluster_secondary is succeeded
+
+  - name: write cluster configuration on secondary
+    template:
+      src: etc/corosync/corosync.conf.j2
+      dest: /etc/corosync/corosync.conf
+      mode: 0644
+      owner: root
+      group: root
+
+  - name: create systemd dropin directory for pacemaker
+    file:
+      path: /etc/systemd/system/pacemaker.service.d
+      mode: 0755
+      state: directory
+
+  - name: create systemd dropin for pacemaker environment
+    copy:
+      dest: /etc/systemd/system/pacemaker.service.d/python.conf
+      mode: 0644
+      content: |
+        [Service]
+        Environment=CLOUDSDK_PYTHON={{ cloudsdk_python_export_path }}
+
+  - name: start and enable services
+    systemd:
+      name: '{{ item }}'
+      state: started
+      enabled: true
+      daemon_reload: true
+    loop:
+    - corosync.service
+    - hawk.service
+    - pacemaker.service
+  when: |
+    not is_primary and ansible_os_family == 'Suse'
+
+- name: create systemd dropin directory for corosync
+  file:
+    path: /etc/systemd/system/corosync.service.d
+    mode: '0755'
+    state: directory
+
+- name: create systemd dropin for corosync to delay start
+  copy:
+    dest: /etc/systemd/system/corosync.service.d/override.conf
+    mode: '0644'
+    content: |
+      [Service]
+      ExecStartPre=/bin/sleep 60

@@ -1,0 +1,70 @@
+# Copyright 2021 Google LLC
+#
+# Licensed under the Apache License, Version 2.0 (the "License");
+# you may not use this file except in compliance with the License.
+# You may obtain a copy of the License at
+#
+#     https://www.apache.org/licenses/LICENSE-2.0
+#
+# Unless required by applicable law or agreed to in writing, software
+# distributed under the License is distributed on an "AS IS" BASIS,
+# WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+# See the License for the specific language governing permissions and
+# limitations under the License.
+
+
+sap_project_id: ccg24-hrzana-fin-gls4-prod
+sap_zone: us-west4-a
+sap_subnetwork: ccg24-us-west4-hrzana-5
+sap_subnetwork_project_id: pp-p-us-west4-xpn
+sap_source_image_name: pp-sap-west-rhel
+sap_source_image_project: pp-prod-etx-images
+sap_tf_state_bucket: pp_ccg24_gls4_prod_state
+sap_tf_state_bucket_prefix: lp4-nw
+
+
+
+sap_nw_instance_name: saplp4asu01
+sap_nw_instance_ip: 10.174.174.101
+sap_nw_instance_type:  n2-standard-16
+sap_nw_use_public_ip: false
+sap_nw_boot_disk_size: 100
+sap_nw_boot_disk_type: pd-ssd
+sap_nw_autodelete_boot_disk: true
+sap_nw_usrsap_disk_size: 50
+sap_nw_swap_disk_size: 50
+sap_nw_usrsap_disk_type: pd-ssd
+sap_nw_swap_disk_type: pd-ssd
+sap_nw_service_account_email: lsvc-p-fin-gls4-prd1@ccg24-hrzana-fin-gls4-prod.iam.gserviceaccount.com
+sap_nw_network_tags: ["sap-allow-all"]
+sap_nw_pd_kms_key: 'projects/pp-prodcos-cmek-9519/locations/us-west4/keyRings/prod-pp-keyring-uswest4/cryptoKeys/prod-pp-vmenc-key-us-west4'
+sap_nw_labels:
+  app: nw
+sap_nw_virtual_ip:
+  - 10.174.174.148
+sap_nw_alias_ip:
+  - 10.174.174.101
+  - 10.174.174.148
+sap_nw_ascs_virtual_host: saplp4ascs
+sap_nw_pas_virtual_host: saplp4app01
+
+
+
+sap_ssh_user: patchmanager
+sap_host_fqdn: "gcp.fin.paypalinc.com"
+sap_hana_virtual_host: lp4-fwr-vip
+sap_hana_ilb_ip: 10.174.174.147
+sap_hana_sid: LP4
+sap_nw_sid: LP4
+sap_hana_instance_number: "00"
+sap_nw_ascs_instance_number: "01"
+sap_nw_pas_instance_number: "00"
+sap_hana_gsm_secret_id: hana_default_pass
+sap_nw_install_files_bucket: gls4_prd_build
+sap_nw_aas_ip:
+sap_nw_gsm_secret_id: hana_default_pass
+sap_nw_product_and_version: 'NetWeaver/750'
+sap_sapinst_nw: true
+sapmnt_nfs_server_path: 192.168.114.21:/sapmnt-lp4
+sap_hana_password: Paypal12345
+sap_nw_password: Paypal12345

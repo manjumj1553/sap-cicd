@@ -1,0 +1,18 @@
+- name: Stop google-guest-agent
+  service:
+    name: google-guest-agent
+    state: stopped
+
+- name: Modify instance_configs.cfg
+  replace:
+    path: /etc/default/instance_configs.cfg
+    regexp: "{{ item.regexp }}"
+    replace: "{{ item.replace }}"
+  with_items:
+    - { regexp: '^target_instance_ips = true$', replace: 'target_instance_ips = false' }
+    - { regexp: '^ip_forwarding = true$', replace: 'ip_forwarding = false' }
+
+- name: Start google-guest-agent
+  service:
+    name: google-guest-agent
+    state: started

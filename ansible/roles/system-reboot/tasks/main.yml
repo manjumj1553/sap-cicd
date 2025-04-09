@@ -1,0 +1,27 @@
+- name: Stop Instances
+  command: >
+    {% if item.name is iterable and item.name is not string %}
+      gcloud compute instances stop {{ item.name | join(' ') }} --zone {{ item.zone }} --project {{ sap_project_id }}
+    {% else %}
+      gcloud compute instances stop {{ item.name }} --zone {{ item.zone }} --project {{ sap_project_id }}
+    {% endif %}
+  with_items: "{{ instances }}"
+  register: stop_result
+
+- name: Wait for instances to be stable
+  wait_for:
+    timeout: 120
+
+- name: Start Instances
+  command: >
+    {% if item.name is iterable and item.name is not string %}
+      gcloud compute instances start {{ item.name | join(' ') }} --zone {{ item.zone }} --project {{ sap_project_id }}
+    {% else %}
+      gcloud compute instances start {{ item.name }} --zone {{ item.zone }} --project {{ sap_project_id }}
+    {% endif %}
+  with_items: "{{ instances }}"
+  register: start_result
+
+- name: Wait for instances to be stable
+  wait_for:
+    timeout: 120

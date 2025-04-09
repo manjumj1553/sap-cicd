@@ -1,0 +1,287 @@
+# Copyright 2021 Google LLC
+#
+# Licensed under the Apache License, Version 2.0 (the "License");
+# you may not use this file except in compliance with the License.
+# You may obtain a copy of the License at
+#
+#     https://www.apache.org/licenses/LICENSE-2.0
+#
+# Unless required by applicable law or agreed to in writing, software
+# distributed under the License is distributed on an "AS IS" BASIS,
+# WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+# See the License for the specific language governing permissions and
+# limitations under the License.
+
+- name: Update HDB user store with SYSTEM
+  shell: >-
+    source {{ hdb_us_source_file | quote }} &&
+    hdbuserstore SET SYSTEMUSER
+    {{ hdb_us_db_host | quote }}:{{ hdb_us_db_port | quote }} 'SYSTEM' {{ sap_hana_db_system_password | quote }}
+  become: yes
+  become_user: '{{ sap_hana_user }}'
+  when: (sap_hana_is_primary | bool)
+  async: 30
+  poll: 5
+
+- name: Check hdbsql Connection
+  wait_for:
+    host: "{{ hdb_us_db_host }}"
+    port: "{{ hdb_us_db_port }}"
+    state: started
+    delay: 30
+
+- name: Create backupadm user
+  shell:
+    cmd: |
+      # source /usr/sap/{{ sap_hana_user }}/home/.sapenv.sh && /usr/sap/{{ sap_hana_sid | upper }}/HDB{{ sap_hana_instance_number }}/exe/hdbsql -i {{ sap_hana_instance_number }} -U SYSTEMUSER -d SYSTEMDB 'create user backupadm password {{ sap_hana_db_system_password | quote }} NO FORCE_FIRST_PASSWORD_CHANGE'
+      source /usr/sap/{{ sap_hana_sid }}/home/.sapenv.sh && /usr/sap/{{ sap_hana_sid | upper }}/HDB{{ sap_hana_instance_number }}/exe/hdbsql -i {{ sap_hana_instance_number }} -U SYSTEMUSER -d SYSTEMDB 'create user backupadm password {{ sap_hana_db_system_password | quote }} NO FORCE_FIRST_PASSWORD_CHANGE'  
+  args:
+     executable: /bin/bash
+  become: yes
+  become_user: "{{ sap_hana_user }}"
+  register: hana_backupadm_create
+  changed_when: "'0 rows affected' in hana_backupadm_create.stdout"
+  ignore_errors: True
+  when: (sap_hana_is_primary | bool)
+  async: 20
+  poll: 5
+
+- name: Grant backupadm user with admin privileges
+  shell:
+    cmd: |
+      # source /usr/sap/{{ sap_hana_user }}/home/.sapenv.sh && /usr/sap/{{ sap_hana_sid | upper }}/HDB{{ sap_hana_instance_number }}/exe/hdbsql -i {{ sap_hana_instance_number }} -U SYSTEMUSER -d SYSTEMDB 'grant database backup admin to backupadm'
+      source /usr/sap/{{ sap_hana_sid }}/home/.sapenv.sh && /usr/sap/{{ sap_hana_sid | upper }}/HDB{{ sap_hana_instance_number }}/exe/hdbsql -i {{ sap_hana_instance_number }} -U SYSTEMUSER -d SYSTEMDB 'grant database backup admin to backupadm'
+  args:
+     executable: /bin/bash
+  become: yes
+  become_user: "{{ sap_hana_user }}"
+  register: hana_backupadm_grant
+  changed_when: "'0 rows affected' in hana_backupadm_grant.stdout"
+  ignore_errors: True
+  when: (sap_hana_is_primary | bool)
+  async: 30
+  poll: 5
+
+- name: Grant backupadm user with backup admin privileges
+  shell:
+    cmd: |
+      # source /usr/sap/{{ sap_hana_user }}/home/.sapenv.sh && /usr/sap/{{ sap_hana_sid | upper }}/HDB{{ sap_hana_instance_number }}/exe/hdbsql -i {{ sap_hana_instance_number }} -U SYSTEMUSER -d SYSTEMDB 'grant backup admin to backupadm'
+      source /usr/sap/{{ sap_hana_sid }}/home/.sapenv.sh && /usr/sap/{{ sap_hana_sid | upper }}/HDB{{ sap_hana_instance_number }}/exe/hdbsql -i {{ sap_hana_instance_number }} -U SYSTEMUSER -d SYSTEMDB 'grant backup admin to backupadm'
+  args:
+     executable: /bin/bash
+  become: yes
+  become_user: "{{ sap_hana_user }}"
+  register: hana_backupadm_grant
+  changed_when: "'0 rows affected' in hana_backupadm_grant.stdout"
+  ignore_errors: True
+  when: (sap_hana_is_primary | bool)
+  async: 30
+  poll: 5
+
+- name: Update HDB user store with backupadm
+  shell: >-
+    source {{ hdb_us_source_file | quote }} &&
+    hdbuserstore SET BACKUPS
+    {{ hdb_us_db_host | quote }}:{{ hdb_us_db_port | quote }} {{ hdb_us_db_user | quote }} {{ hdb_us_db_password | quote }}
+  become: yes
+  become_user: '{{ sap_hana_user }}'
+  when: (sap_hana_is_primary | bool)
+  async: 30
+  poll: 5
+
+- name: Alter configuration catalog_backup_parameter_file
+  shell: |
+    source /usr/sap/{{ sap_hana_sid }}/home/.sapenv.sh && \
+    /usr/sap/{{ sap_hana_sid | upper }}/HDB{{ sap_hana_instance_number }}/exe/hdbsql \
+    -i {{ sap_hana_instance_number }} -U SYSTEMUSER -d SYSTEMDB \
+    "alter system ALTER CONFIGURATION ( 'global.ini', 'SYSTEM' ) \
+    set ('backup', 'catalog_backup_parameter_file') = '{{ backint_config_path }}' WITH RECONFIGURE "
+  args:
+     executable: /bin/bash
+  become: yes
+  become_user: "{{ sap_hana_user }}"
+  register: hanabkp_alt1
+  changed_when: "'0 rows affected' in hanabkp_alt1.stdout"
+  when: (sap_hana_is_primary | bool)
+  async: 20
+  poll: 5
+
+- name: Alter configuration catalog_backup_using_backint
+  shell: |
+    source /usr/sap/{{ sap_hana_sid }}/home/.sapenv.sh && \
+    /usr/sap/{{ sap_hana_sid | upper }}/HDB{{ sap_hana_instance_number }}/exe/hdbsql \
+    -i {{ sap_hana_instance_number }} -U SYSTEMUSER -d SYSTEMDB \
+    "alter system ALTER CONFIGURATION ( 'global.ini', 'SYSTEM' ) \
+    set ('backup', 'catalog_backup_using_backint') = '{{ sap_hana_backint_install }}' WITH RECONFIGURE "
+  args:
+     executable: /bin/bash
+  become: yes
+  become_user: "{{ sap_hana_user }}"
+  register: hanabkp_alt2
+  changed_when: "'0 rows affected' in hanabkp_alt2.stdout"
+  when: (sap_hana_is_primary | bool)
+  async: 20
+  poll: 5
+
+- name: Alter configuration data_backup_parameter_file
+  shell: |
+    source /usr/sap/{{ sap_hana_sid }}/home/.sapenv.sh && \
+    /usr/sap/{{ sap_hana_sid | upper }}/HDB{{ sap_hana_instance_number }}/exe/hdbsql \
+    -i {{ sap_hana_instance_number }} -U SYSTEMUSER -d SYSTEMDB \
+    "alter system ALTER CONFIGURATION ( 'global.ini', 'SYSTEM' ) \
+    set ('backup', 'data_backup_parameter_file') = '{{ backint_config_path }}' WITH RECONFIGURE "
+  args:
+     executable: /bin/bash
+  become: yes
+  become_user: "{{ sap_hana_user }}"
+  register: hanabkp_alt3
+  changed_when: "'0 rows affected' in hanabkp_alt3.stdout"
+  when: (sap_hana_is_primary | bool)
+  async: 20
+  poll: 5
+
+- name: Alter configuration log_backup_parameter_file
+  shell: |
+    source /usr/sap/{{ sap_hana_sid }}/home/.sapenv.sh && \
+    /usr/sap/{{ sap_hana_sid | upper }}/HDB{{ sap_hana_instance_number }}/exe/hdbsql \
+    -i {{ sap_hana_instance_number }} -U SYSTEMUSER -d SYSTEMDB \
+    "alter system ALTER CONFIGURATION ( 'global.ini', 'SYSTEM' ) \
+    set ('backup', 'log_backup_parameter_file') = '{{ backint_config_path }}' WITH RECONFIGURE "
+  args:
+     executable: /bin/bash
+  become: yes
+  become_user: "{{ sap_hana_user }}"
+  register: hanabkp_alt4
+  changed_when: "'0 rows affected' in hanabkp_alt4.stdout"
+  when: (sap_hana_is_primary | bool)
+  async: 20
+  poll: 5
+
+- name: Alter configuration log_backup_using_backint
+  shell: |
+    source /usr/sap/{{ sap_hana_sid }}/home/.sapenv.sh && \
+    /usr/sap/{{ sap_hana_sid | upper }}/HDB{{ sap_hana_instance_number }}/exe/hdbsql \
+    -i {{ sap_hana_instance_number }} -U SYSTEMUSER -d SYSTEMDB \
+    "alter system ALTER CONFIGURATION ( 'global.ini', 'SYSTEM' ) \
+    set ('backup', 'log_backup_using_backint') = '{{ sap_hana_backint_install }}' WITH RECONFIGURE "
+  args:
+     executable: /bin/bash
+  become: yes
+  become_user: "{{ sap_hana_user }}"
+  register: hanabkp_alt5
+  changed_when: "'0 rows affected' in hanabkp_alt5.stdout"
+  when: (sap_hana_is_primary | bool)
+  async: 20
+  poll: 5
+
+- name: Alter configuration basepath_catalogbackup
+  shell: |
+    source /usr/sap/{{ sap_hana_sid }}/home/.sapenv.sh && \
+    /usr/sap/{{ sap_hana_sid | upper }}/HDB{{ sap_hana_instance_number }}/exe/hdbsql \
+    -i {{ sap_hana_instance_number }} -U SYSTEMUSER -d SYSTEMDB \
+    "alter system ALTER CONFIGURATION ( 'global.ini', 'SYSTEM' ) \
+    set ('persistence', 'basepath_catalogbackup') = '{{ sap_hana_backup_log_mountpoint }}' WITH RECONFIGURE "
+  args:
+     executable: /bin/bash
+  become: yes
+  become_user: "{{ sap_hana_user }}"
+  register: hanabkp_alt6
+  changed_when: "'0 rows affected' in hanabkp_alt6.stdout"
+  when: (sap_hana_is_primary | bool)
+  async: 20
+  poll: 5
+
+- name: Alter configuration basepath_databackup
+  shell: |
+    source /usr/sap/{{ sap_hana_sid }}/home/.sapenv.sh && \
+    /usr/sap/{{ sap_hana_sid | upper }}/HDB{{ sap_hana_instance_number }}/exe/hdbsql \
+    -i {{ sap_hana_instance_number }} -U SYSTEMUSER -d SYSTEMDB \
+    "alter system ALTER CONFIGURATION ( 'global.ini', 'SYSTEM' ) \
+    set ('persistence', 'basepath_databackup') = '{{ sap_hana_backup_data_mountpoint }}' WITH RECONFIGURE "
+  args:
+     executable: /bin/bash
+  become: yes
+  become_user: "{{ sap_hana_user }}"
+  register: hanabkp_alt7
+  changed_when: "'0 rows affected' in hanabkp_alt7.stdout"
+  when: (sap_hana_is_primary | bool)
+  async: 20
+  poll: 5
+
+- name: Alter configuration basepath_logbackup
+  shell: |
+    source /usr/sap/{{ sap_hana_sid }}/home/.sapenv.sh && \
+    /usr/sap/{{ sap_hana_sid | upper }}/HDB{{ sap_hana_instance_number }}/exe/hdbsql \
+    -i {{ sap_hana_instance_number }} -U SYSTEMUSER -d SYSTEMDB \
+    "alter system ALTER CONFIGURATION ( 'global.ini', 'SYSTEM' ) \
+    set ('persistence', 'basepath_logbackup') = '{{ sap_hana_backup_log_mountpoint }}' WITH RECONFIGURE "
+  args:
+     executable: /bin/bash
+  become: yes
+  become_user: "{{ sap_hana_user }}"
+  register: hanabkp_alt8
+  changed_when: "'0 rows affected' in hanabkp_alt8.stdout"
+  when: (sap_hana_is_primary | bool)
+  async: 20
+  poll: 5
+
+- name: Perform initial backup of system db
+  shell:
+    cmd: |
+      # source /usr/sap/{{ sap_hana_user }}/home/.sapenv.sh && /usr/sap/{{ sap_hana_sid | upper }}/HDB{{ sap_hana_instance_number }}/exe/hdbsql -U BACKUPS "backup data using backint ('INITIAL')"
+      source /usr/sap/{{ sap_hana_sid }}/home/.sapenv.sh && /usr/sap/{{ sap_hana_sid | upper }}/HDB{{ sap_hana_instance_number }}/exe/hdbsql -U BACKUPS "backup data using backint ('INITIAL')"
+  args:
+     executable: /bin/bash
+  become: yes
+  become_user: "{{ sap_hana_user }}"
+  register: hanabkp_sysdb
+  changed_when: "'0 rows affected' in hanabkp_sysdb.stdout"
+  when: (sap_hana_is_primary | bool)
+  async: 900
+  poll: 10
+
+- name: Perform initial backup of hana tenant db
+  shell:
+    cmd: |
+      # source /usr/sap/{{ sap_hana_user }}/home/.sapenv.sh && /usr/sap/{{ sap_hana_sid | upper }}/HDB{{ sap_hana_instance_number }}/exe/hdbsql -U BACKUPS "backup data for {{ sap_hana_sid | upper }} using backint ('INITIAL')"
+      source /usr/sap/{{ sap_hana_sid }}/home/.sapenv.sh && /usr/sap/{{ sap_hana_sid | upper }}/HDB{{ sap_hana_instance_number }}/exe/hdbsql -U BACKUPS "backup data for {{ sap_hana_sid | upper }} using backint ('INITIAL')"
+  args:
+     executable: /bin/bash
+  become: yes
+  become_user: "{{ sap_hana_user }}"
+  register: hanabkp_tentdb
+  changed_when: "'0 rows affected' in hanabkp_tentdb.stdout"
+  when: (sap_hana_is_primary | bool)
+  async: 900
+  poll: 10
+
+- name: Ensure scripts directory exists
+  file:
+    # path: "/usr/sap/{{ sap_hana_user }}/home/scripts"
+    path: "/usr/sap/{{ sap_hana_sid }}/home/scripts"
+    state: directory
+    mode: '0755'
+    owner: '{{ sap_hana_user }}'
+    group: sapsys
+  when: (sap_hana_is_primary | bool)
+
+- name: Copy hana-backup cronscipt to sidam folder
+  copy:
+    src: "{{ role_path }}/files/start-hana-backups.sh"
+    # dest: "/usr/sap/{{ sap_hana_user }}/home/scripts/start-hana-backups.sh"
+    dest: "/usr/sap/{{ sap_hana_sid }}/home/scripts/start-hana-backups.sh"
+    owner: '{{ sap_hana_user }}'
+    group: sapsys
+    mode: '0755'
+  when: (sap_hana_is_primary | bool)
+
+- name: Cron entry for taking the database backup
+  cron:
+    name: "initiate backup from hana"
+    minute: "55"
+    hour: "10"
+    # job: "/usr/sap/{{ sap_hana_user }}/home/scripts/start-hana-backups.sh BACKUPS"
+    job: "/usr/sap/{{ sap_hana_sid }}/home/scripts/start-hana-backups.sh BACKUPS"
+  become: yes
+  become_user: "{{ sap_hana_user }}"
+  when: (sap_hana_is_primary | bool)

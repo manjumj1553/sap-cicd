@@ -1,0 +1,73 @@
+# Copyright 2021 Google LLC
+#
+# Licensed under the Apache License, Version 2.0 (the "License");
+# you may not use this file except in compliance with the License.
+# You may obtain a copy of the License at
+#
+#     https://www.apache.org/licenses/LICENSE-2.0
+#
+# Unless required by applicable law or agreed to in writing, software
+# distributed under the License is distributed on an "AS IS" BASIS,
+# WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+# See the License for the specific language governing permissions and
+# limitations under the License.
+
+- name: Standard AAS Snapshotlist 
+  hosts: 127.0.0.1
+  connection: local
+  roles:
+    - role: snapshot-list
+      vars:
+         - {instance_type: "standardaas", instance_list: ["{{ primary_sap_aas_instance_name }}"], dzone: "{{ primary_sap_aas_zone }}"} 
+
+- hosts: 127.0.0.1
+  connection: local
+  roles:
+  - role: forminator
+    vars:
+      sap_tf_project_path: ./tf
+      sap_state: '{{ state | default("present") }}'
+      fqdn_name: '{{ sap_host_fqdn }}'
+      sap_tf_variables:
+        project_id: '{{ sap_project_id }}'
+        subnetwork: '{{ sap_nw_subnetwork }}'
+        subnetwork_project: '{{ sap_subnetwork_project_id | default("") }}'
+        sap_nw_dr_aas_region: '{{ sap_nw_dr_aas_region }}'
+        sap_nw_dr_aas_zone: '{{ sap_nw_dr_aas_zone }}'
+        sap_nw_dr_aas_instance_name: '{{ sap_nw_dr_aas_instance_name }}'
+        sap_nw_dr_aas_instance_ip: '{{ sap_nw_dr_aas_instance_ip }}'
+        sap_nw_dr_aas_instance_type: '{{ sap_nw_dr_aas_instance_type | default("n1-standard-8") }}'
+        sap_nw_dr_aas_use_public_ip: '{{ sap_nw_dr_aas_use_public_ip | default(false) }}'
+        sap_nw_dr_aas_boot_disk_size: '{{ sap_nw_dr_aas_boot_disk_size | default(30) }}'
+        sap_nw_dr_aas_boot_disk_type: '{{ sap_nw_dr_aas_boot_disk_type | default("pd-ssd") }}'
+        sap_nw_dr_aas_autodelete_boot_disk: '{{ sap_nw_dr_aas_autodelete_boot_disk | default(true) }}'
+        sap_nw_dr_aas_usrsap_disk_size: '{{ sap_nw_dr_aas_usrsap_disk_size | default(150) }}'
+        sap_nw_dr_aas_swap_disk_size: '{{ sap_nw_dr_aas_swap_disk_size | default(28) }}'
+        sap_nw_dr_aas_usrsap_disk_type: '{{ sap_nw_dr_aas_usrsap_disk_type }}'
+        sap_nw_dr_aas_swap_disk_type: '{{ sap_nw_dr_aas_swap_disk_type }}'
+        sap_nw_dr_aas_service_account_email: '{{ sap_nw_dr_aas_service_account_email }}'
+        sap_nw_dr_aas_network_tags: '{{ sap_nw_dr_aas_network_tags | default([sap_nw_dr_aas_network_tags | default("sap-allow-all")]) }}'
+        sap_nw_dr_aas_pd_kms_key: '{{ sap_nw_dr_aas_pd_kms_key }}'
+        sap_nw_dr_aas_labels: '{{ sap_nw_dr_aas_labels }}'
+        sap_nw_dr_aas_alias_ip: '{{ sap_nw_dr_aas_alias_ip }}'
+        sap_nw_instance_map: '{{ standardaasmap }}'
+  # - role: gcp-secrets-manager
+  tags: [nw]
+
+- name: SAP NetWeaver Additional application server configure
+  hosts: nw
+  become: yes
+  roles:
+  - role: nw-standard-dr-aas-lite
+    vars:
+      sap_hana_vip: '{{ sap_hana_instance_ip }}'
+      sap_hana_virtual_host: '{{ sap_hana_virtual_host }}'
+      sap_nw_aas_virtual_host: '{{ sap_nw_aas_virtual_host }}'
+      sap_nw_ascs_alias_ip: '{{ sap_nw_ascs_alias_ip }}' 
+      sap_nw_pas_alias_ip: '{{ sap_nw_pas_alias_ip }}'
+      sap_nw_ascs_virtual_host: '{{ sap_nw_ascs_virtual_host }}'
+      sap_nw_pas_virtual_host: '{{ sap_nw_pas_virtual_host }}'
+      sap_nw_aas_alias_ip: '{{ sap_nw_dr_aas_alias_ip }}'
+      sap_nw_aas_zone: '{{ sap_nw_dr_aas_zone }}'
+      sap_nw_instance_name: '{{ sap_nw_dr_aas_instance_name }}'
+  tags: [nw]

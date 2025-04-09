@@ -1,0 +1,24 @@
+- name: Unmount stale mount points
+  shell: |
+    umount -l {{ sap_nw_sapmnt_mount }}
+  become: true
+  ignore_errors: true # In case the mount point doesn't exist.
+  failed_when: false
+  changed_when: false
+
+- name: Update NFS mount entries
+  replace:
+    path: /etc/fstab
+    regexp: '{{ primary_sap_nw_nfs_src }}'
+    replace: "{{ sap_nw_nfs_src }}"
+
+- name: reload systemd
+  command: systemctl daemon-reload
+
+- name: Mount NFS share to mount sapmnt directory
+  mount: 
+    path: "{{ sap_nw_sapmnt_mount }}"
+    src: "{{ sapmnt_nfs_server_path }}"
+    fstype: nfs
+    opts: vers=3,defaults
+    state: mounted

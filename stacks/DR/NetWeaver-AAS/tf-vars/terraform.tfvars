@@ -1,0 +1,29 @@
+
+project_id                          = "sap-iac-test"
+subnetwork                          = "db-central"
+subnetwork_project                  = "sap-iac-test"
+source_image_name                   = "rhel-8-8-sap-v20241210"
+source_image_project                = "rhel-sap-cloud"
+gce_ssh_user                        = "mahekar"
+gce_ssh_pub_key_file                = "~/.ssh/id_ecdsa.pub"
+sap_nw_dr_aas_zone                  = "us-central1-c"
+sap_nw_dr_aas_instance_name         = ["uscdraas11", "uscdraas12"]
+sap_nw_dr_aas_instance_ip           = ["10.5.0.116", "10.5.0.118"]
+sap_nw_dr_aas_instance_type         = "n2-standard-4"
+sap_nw_dr_aas_boot_disk_size        = 50
+sap_nw_dr_aas_boot_disk_type        = "pd-ssd"
+sap_nw_dr_aas_autodelete_boot_disk  = true
+sap_nw_dr_aas_usrsap_disk_size      = 110
+sap_nw_dr_aas_swap_disk_size        = 30
+sap_nw_dr_aas_usrsap_disk_type      = "pd-ssd"
+sap_nw_dr_aas_swap_disk_type        = "pd-ssd"
+sap_nw_dr_aas_service_account_email = "811811474621-compute@developer.gserviceaccount.com"
+sap_nw_dr_aas_network_tags          = ["sap-allow-all-test"]
+sap_nw_dr_aas_pd_kms_key            = "projects/sap-iac-test/locations/global/keyRings/paypal-ring/cryptoKeys/paypal-key"
+sap_nw_dr_aas_labels = {
+  env = "prod"
+  app = "aas"
+}
+sap_nw_dr_aas_create_instance_group = false # Do not change
+sap_nw_dr_aas_instance_group_name   = ""    # Do not change
+sap_nw_dr_aas_alias_ip              = ["10.5.0.117", "10.5.0.119"]

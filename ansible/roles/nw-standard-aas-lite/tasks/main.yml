@@ -1,0 +1,128 @@
+# Copyright 2021 Google LLC
+#
+# Licensed under the Apache License, Version 2.0 (the "License");
+# you may not use this file except in compliance with the License.
+# You may obtain a copy of the License at
+#
+#     https://www.apache.org/licenses/LICENSE-2.0
+#
+# Unless required by applicable law or agreed to in writing, software
+# distributed under the License is distributed on an "AS IS" BASIS,
+# WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+# See the License for the specific language governing permissions and
+# limitations under the License.
+
+- name: ensure that a known product version is defined
+  assert:
+    that: sap_nw_product_and_version in sap_product_vars
+    fail_msg: 'sap_nw_product and sap_nw_product_version must match one of {{ sap_product_vars.keys() | join(", ") }}'
+
+- name: include base role
+  include_role:
+    name: base
+
+- name: include zypper patching role
+  include_role:
+    name: zypper-package-update
+  when: ansible_os_family == "Suse"
+
+- name: Modify localhost entry in line in /etc/hosts
+  lineinfile:
+    path: /etc/hosts
+    line: "::1 localhost"
+    insertafter: '^127\.0\.0\.1'
+    state: present
+
+- name: include storage role
+  include_role:
+    name: storage
+  vars:
+    disks: '{{ sap_nw_disks }}'
+    logvols: '{{ sap_nw_logvols }}'
+
+- name: update /etc/idmapd.conf file NetappVolume entry settings
+  replace:
+    path: /etc/idmapd.conf
+    regexp: "localdomain"
+    replace: "defaultv4iddomain.com"
+
+- name: restart nfsidmap service
+  command: nfsidmap -c
+
+- name: include sapmnt nfs role
+  include_role:
+    name: sapmnt-nfs
+
+- name: include nw-pre role
+  include_role:
+    name: nw-pre
+  vars:
+    sap_product_and_version: '{{ sap_nw_product_and_version }}'
+
+- name: include hosts-file role
+  include_role:
+    name: hosts-file
+  vars:
+    hosts_file_peers: '{{ ansible_play_hosts }}'
+    
+- name: Update /etc/hosts for aliases
+  lineinfile:
+    path: /etc/hosts
+    state: present
+    line: "{{ sap_nw_aas_alias_ip[item] }} {{ sap_nw_aas_virtual_host }}.{{ sap_host_fqdn }} {{ sap_nw_aas_virtual_host }}"
+    create: yes
+    regexp: "^({{ sap_nw_aas_alias_ip[item] }})\\s"
+  loop: "{{ range(0, sap_nw_aas_alias_ip | length) | list }}"
+
+- name: update /etc/hosts file with fqdn entries for replacing
+  replace:
+    path: /etc/hosts
+    regexp: "{{ item.old }}"
+    replace: "{{ item.new }}"
+  loop:
+    - { old: "{{ sap_nw_aas_zone }}.c.{{ sap_project_id }}.internal", new: "{{ sap_host_fqdn }}" }
+    
+- name: Ensure NetworkManager connection profile is configured
+  shell: |
+    systemctl enable NetworkManager
+    systemctl restart NetworkManager
+    nmcli con mod "System ens4" +ip4 '{{ sap_nw_aas_alias_ip[item] }}/32'
+    nmcli conn up "System ens4"
+  loop: "{{ range(0, sap_nw_aas_alias_ip | length) | list }}"
+  when: |
+    ansible_os_family == 'RedHat'
+
+- name: include sapinst role
+  include_role:
+    name: sapinst
+  vars:
+    sap_product_id: '{{ sap_product_vars[sap_nw_product_and_version].onehost_product_id }}'
+    sap_sapinst_swpm_path: '{{ sap_product_vars[sap_nw_product_and_version].swpm_path }}'
+    sap_sapinst_template: '{{ sap_product_vars[sap_nw_product_and_version].onehost_sapinst_template }}'
+  when: sap_solman_stack|bool == false
+
+- name: include sap-hana-hdb-userstore role
+  include_role:
+    name: sap-hana-hdb-userstore-slt
+  vars:
+    hdb_us_become_user: '{{ sap_nw_user }}'
+    hdb_us_db_host: '{{ sap_hana_virtual_host }}'
+    hdb_us_db_name: '{{ sap_nw_db_sid }}'
+    hdb_us_db_password: '{{ sap_nw_schema_password }}'
+    hdb_us_db_port: '3{{ sap_hana_instance_number }}13'
+    hdb_us_db_user: '{{ sap_nw_schema }}'
+    hdb_us_key: DEFAULT
+    hdb_us_source_file: '/home/{{ sap_nw_user }}/.profile'
+    sap_nw_host: '{{ item }}'
+  with_items:
+    - '{{ sap_nw_aas_instance_name}}'
+    - '{{ sap_nw_aas_virtual_host}}'
+    
+- name: include nw-monitoring agent role
+  include_role:
+    name: gcp-sap-agent
+  when: ansible_os_family == "Suse"
+
+- name: include gcp misc installations
+  include_role:
+    name: gcp-misc-adjustments

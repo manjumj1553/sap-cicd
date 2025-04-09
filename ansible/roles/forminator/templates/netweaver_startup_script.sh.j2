@@ -1,0 +1,17 @@
+#!/bin/bash
+
+# Check if the flag file exists
+if [ -f /var/log/startup-script-executed ]; then
+  # Exit the script if it's a restart
+  exit 0
+fi
+
+mkdir -p /home/{{ sap_ssh_user }}/.ssh
+touch /home/{{ sap_ssh_user }}/.ssh/authorized_keys
+echo "{{ pub_key_content }}" >> /home/{{ sap_ssh_user }}/.ssh/authorized_keys
+echo "{{ sap_hana_instance_ip }} {{ sap_hana_instance_name }}.{{ fqdn_name }} {{ sap_hana_instance_name }}" >> /etc/hosts
+echo "{{ sap_nw_instance_ip }} {{ sap_nw_instance_name }}.{{ fqdn_name }} {{ sap_nw_instance_name }}" >> /etc/hosts
+chown -R {{ sap_ssh_user }}:{{ sap_ssh_user }} /home/{{ sap_ssh_user }}
+
+# Create the flag file
+touch /var/log/startup-script-executed

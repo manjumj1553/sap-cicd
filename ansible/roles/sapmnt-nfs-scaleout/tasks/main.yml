@@ -1,0 +1,32 @@
+- name: Create mount point directories
+  file:
+    path: "{{ item.path }}"
+    state: directory
+    mode: '0755'
+  become: yes
+  loop:
+    - { path: "{{ sap_hana_shared_mountpoint }}" }
+    - { path: "{{ sap_hana_lssshared_mountpoint }}" }
+
+- name: Mount NFS shares
+  mount:
+    path: "{{ item.mount_point }}"
+    src: "{{ item.nfs_server_path }}"
+    fstype: nfs
+    opts: vers=3,defaults
+    state: mounted
+  become: yes
+  loop:
+    - { mount_point: "{{ sap_hana_shared_mountpoint }}", nfs_server_path: "{{ sapmnt_nfs_server_path }}" }
+    - { mount_point: "{{ sap_hana_lssshared_mountpoint }}", nfs_server_path: "{{ sapmnt_nfs_lss_server_path }}" }
+
+- name: Ensure NFS mounts are persistent across reboots
+  lineinfile:
+    path: /etc/fstab
+    regexp: '^{{ item.nfs_server_path }} {{ item.mount_point }} nfs'
+    line: "{{ item.nfs_server_path }} {{ item.mount_point }} nfs vers=3,defaults,nofail 0 0"
+    create: yes
+  become: yes
+  loop:
+    - { mount_point: "{{ sap_hana_shared_mountpoint }}", nfs_server_path: "{{ sapmnt_nfs_server_path }}" }
+    - { mount_point: "{{ sap_hana_lssshared_mountpoint }}", nfs_server_path: "{{ sapmnt_nfs_lss_server_path }}" }

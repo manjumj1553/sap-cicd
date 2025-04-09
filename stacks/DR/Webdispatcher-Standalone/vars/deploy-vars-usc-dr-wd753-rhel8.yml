@@ -1,0 +1,72 @@
+# Required variables
+primary_sap_webdisp_instance_name: uscwd1app01    # Prod Webdispatcher Instance Name
+primary_sap_primary_zone: us-central1-a           # Prod Webdispatcher Zone
+primary_sap_project_id: sap-iac-test
+# Primary NFS using one server, for example when using Cloud FileStore.
+primary_sap_nw_nfs_src: 10.167.224.4:/paypalvol1/WD1
+
+# Project where resources are created.
+sap_project_id: sap-iac-test
+
+# Subnetwork for nw network interfaces.
+sap_subnetwork: db-central
+
+# Define sap_subnetwork_project_id if using a shared VPC.
+sap_subnetwork_project_id: sap-iac-test
+
+# Terraform state bucket.
+sap_tf_state_bucket: sap-terraform-state-bg-mj
+# Prefix for state file in Terraform state bucket.
+sap_tf_state_bucket_prefix: DR-WEBDISP-HA-20250312
+
+# Zone for Webdispatcher.
+sap_nw_webdisp_zone: us-central1-f
+
+# Webdispatcher Inputs
+sap_nw_webdisp_instance_name: uscdrapp01
+sap_nw_webdisp_instance_ip: 10.5.0.48
+sap_nw_webdisp_instance_type: n2-standard-4
+# Disk configuration
+sap_nw_webdisp_boot_disk_size: 50
+sap_nw_webdisp_boot_disk_type: pd-ssd
+# Delete boot disks automatically.
+sap_nw_webdisp_autodelete_boot_disk: true         # Do not change
+sap_nw_webdisp_usrsap_disk_size: 50
+sap_nw_webdisp_usrsap_disk_type: pd-ssd
+# Service account names for NetWeaver instances.
+sap_nw_webdisp_service_account_email: 811811474621-compute@developer.gserviceaccount.com 
+sap_nw_webdisp_network_tags: ["sap-allow-all"]
+sap_nw_webdisp_pd_kms_key: 'projects/sap-iac-test/locations/global/keyRings/paypal-ring/cryptoKeys/paypal-key'
+sap_nw_webdisp_labels:
+  env: prod
+sap_nw_webdisp_create_instance_group: false         # Do not modify
+sap_nw_webdisp_instance_group_name:                 # Instance Group Name for DR Webdispatcher should be null. Do not change
+
+
+sap_ssh_user: mahekar
+sap_host_fqdn: "paypal.com"
+
+sap_nw_sidadm_uid: 1025
+sap_nw_sapadm_uid: 1032
+sap_sapsys_gid: 1025
+sap_nw_sapsys_gid: 1025
+
+# Secret ID of for HANA password from Google Secrets Manager and SAP requires atleast one capital letter.
+sap_hana_gsm_secret_id: hana_default_pass
+
+# Secret ID of for NW password from Google Secrets Manager and SAP requires atleast one capital letter.
+sap_nw_gsm_secret_id: hana_default_pass
+
+# Secret ID of for DAA password from Google Secrets Manager and SAP requires atleast one capital letter.
+sap_daa_gsm_secret_id: hana_default_pass 
+
+# DR NFS using one server, for example when using Cloud FileStore.
+sap_nw_nfs_src: 10.167.224.4:/paypalvol1/WDR
+
+# SIDs for NetWeaver.
+sap_nw_sid: 
+
+# Instance numbers for NetWeaver. Note that these must be quoted strings.
+sap_nw_instance_number: "00"
+sap_nw_product_and_version: 'WebDispatcher/753'
+sap_nw_password: Paypal12345

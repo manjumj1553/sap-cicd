@@ -1,0 +1,120 @@
+SAPSYSTEMNAME = AP2
+SAPSYSTEM = 00
+INSTANCE_NAME = SCS00
+DIR_CT_RUN = $(DIR_EXE_ROOT)$(DIR_SEP)$(OS_UNICODE)$(DIR_SEP)linuxx86_64
+DIR_EXECUTABLE = $(DIR_INSTANCE)/exe
+SAPLOCALHOST = ap2sapscs
+DIR_PROFILE = $(DIR_INSTALL)$(DIR_SEP)profile
+_PF = $(DIR_PROFILE)/AP2_SCS00_ap2sapscs
+SETENV_00 = DIR_LIBRARY=$(DIR_LIBRARY)
+SETENV_01 = LD_LIBRARY_PATH=$(DIR_LIBRARY):%(LD_LIBRARY_PATH)
+SETENV_02 = SHLIB_PATH=$(DIR_LIBRARY):%(SHLIB_PATH)
+SETENV_03 = LIBPATH=$(DIR_LIBRARY):%(LIBPATH)
+SETENV_04 = PATH=$(DIR_EXECUTABLE):%(PATH)
+#-----------------------------------------------------------------------
+# Copy SAP Executables
+#-----------------------------------------------------------------------
+_CPARG0 = list:$(DIR_CT_RUN)/scs.lst
+Execute_00 = immediate $(DIR_CT_RUN)/sapcpe$(FT_EXE) pf=$(_PF) $(_CPARG0)
+SETENV_05 = SECUDIR=$(DIR_INSTANCE)/sec
+_CPARG1 = list:$(DIR_CT_RUN)/sapcrypto.lst
+Execute_01 = immediate $(DIR_CT_RUN)/sapcpe$(FT_EXE) pf=$(_PF) $(_CPARG1)
+enque/serverhost = $(SAPLOCALHOST)
+OS_UNICODE = uc
+#-----------------------------------------------------------------------
+# Start SAP message server
+#-----------------------------------------------------------------------
+_MS = ms.sap$(SAPSYSTEMNAME)_$(INSTANCE_NAME)
+Execute_02 = local rm -f $(_MS)
+Execute_03 = local ln -s -f $(DIR_EXECUTABLE)/msg_server$(FT_EXE) $(_MS)
+Restart_Program_00 = local $(_MS) pf=$(_PF)
+#-----------------------------------------------------------------------
+# Start SAP enqueue server
+#-----------------------------------------------------------------------
+_EN = en.sap$(SAPSYSTEMNAME)_$(INSTANCE_NAME)
+Execute_04 = local rm -f $(_EN)
+Execute_05 = local ln -s -f $(DIR_EXECUTABLE)/enserver$(FT_EXE) $(_EN)
+Start_Program_01 = local $(_EN) pf=$(_PF)
+#-----------------------------------------------------------------------
+# Start gateway
+#-----------------------------------------------------------------------
+_GW = gw.sap$(SAPSYSTEMNAME)_$(INSTANCE_NAME)
+Execute_06 = local rm -f $(_GW)
+Execute_07 = local ln -s -f $(DIR_EXECUTABLE)/gwrd$(FT_EXE) $(_GW)
+Restart_Program_02 = local $(_GW) pf=$(_PF) -no_abap
+#-----------------------------------------------------------------------
+# SAP Message Server for Java
+#-----------------------------------------------------------------------
+rdisp/msserv = 0
+rdisp/msserv_internal = 3900
+ms/standalone = 1
+ms/server_port_0 = PROT=HTTP,PORT=81$$
+#-----------------------------------------------------------------------
+# SAP Enqueue Server
+#-----------------------------------------------------------------------
+enque/serverinst = $(SAPSYSTEM)
+rdisp/enqname = $(rdisp/myname)
+ipc/shm_psize_34 = 0
+enque/server/threadcount = 4
+enque/server/max_requests = 5000
+enque/server/max_query_requests = 5000
+enque/table_size = 64000
+enque/snapshot_pck_ids = 1600
+#-----------------------------------------------------------------------
+# Back-end system configuration
+#-----------------------------------------------------------------------
+wdisp/system_0 = SID=AP2, MSHOST=ap2sapscs, MSPORT=8100
+#-----------------------------------------------------------------------
+# Configuration of maximum number of concurrent connections
+#-----------------------------------------------------------------------
+icm/max_conn = 500
+#-----------------------------------------------------------------------
+# SAP Web Dispatcher Ports
+#-----------------------------------------------------------------------
+#icm/server_port_0 = PROT=HTTPS,PORT=4300
+#icm/server_port_1 = PROT=HTTP,PORT=8000
+#-----------------------------------------------------------------------
+# SAP Web Dispatcher Administration
+#-----------------------------------------------------------------------
+icm/HTTP/admin_0 = PREFIX=/sap/wdisp/admin,DOCROOT=$(DIR_DATA)$(DIR_SEP)icmandir,AUTHFILE=$(icm/authfile)
+#-----------------------------------------------------------------------
+# Start webdispatcher
+#-----------------------------------------------------------------------
+_CPARG2 = list:$(DIR_CT_RUN)/webdispinst.lst
+Execute_08 = immediate $(DIR_CT_RUN)/sapcpe$(FT_EXE) pf=$(_PF) $(_CPARG2)
+_WD = wd.sap$(SAPSYSTEMNAME)_$(INSTANCE_NAME)
+Execute_09 = local rm -f $(_WD)
+Execute_10 = local ln -s -f $(DIR_EXECUTABLE)/sapwebdisp$(FT_EXE) $(_WD)
+Restart_Program_03 = local $(_WD) pf=$(_PF)
+Execute_11 = local $(DIR_EXECUTABLE)/krnlreg$(FT_EXE) WDISP pf=$(_PF)
+#--------------------------------------------------------------------------
+# HTTPS Port 4300 is used for the normal Connection
+# HTTPS Port is used for the BTS Connection with X509 certificate
+#--------------------------------------------------------------------------
+icm/server_port_5 = PROT=HTTP, PORT=8000, TIMEOUT=60, PROCTIMEOUT=600
+icm/server_port_1 = PROT=HTTPS, PORT=4300, TIMEOUT=60, PROCTIMEOUT=600, SSLCONFIG=ssl_config_1, ACLFILE=/sapmnt/AP2/profile/ACL/acl.admin_access
+icm/ssl_config_1 = VCLIENT=0, CRED=/usr/sap/AP2/SCS00/sec/SAPSSLS.pse
+
+icm/server_port_2 = PROT=HTTPS, PORT=4301, TIMEOUT=60, PROCTIMEOUT=600, SSLCONFIG=ssl_config_2, ACLFILE=/sapmnt/AP2/profile/ACL/acl.admin_access
+icm/ssl_config_2 = VCLIENT=1, CRED=/usr/sap/AP2/SCS00/sec/SAPSSLS.pse
+
+icm/server_port_3 = PROT=HTTPS, PORT=443, TIMEOUT=60, PROCTIMEOUT=600, SSLCONFIG=ssl_config_3, EXTBIND=1, ACLFILE=/sapmnt/AP2/profile/ACL/acl.admin_access
+icm/ssl_config_3 = VCLIENT=0, CRED=/usr/sap/AP2/SCS00/sec/SAPSSLS.pse
+
+wdisp/ssl_encrypt = 1
+icm/server_port_4 = PROT=HTTPS, PORT=4302, TIMEOUT=60, PROCTIMEOUT=600, VCLIENT=1, ACLFILE=/sapmnt/AP2/profile/ACL/acl.admin_access
+
+#icm/HTTP/redirect_4 = PREFIX=/, FROM=*,  FROMPROT=http, PROT=http, HOST=100.89.37.113, PORT=8000
+icm/HTTPS/client_sni_enabled = true
+icm/max_init_time = 0
+#---------------------------------------------------------
+#X.509-Based Logon to NetWeaver AS from SAP Web Dispatcher
+#--------------------------------------------------------
+icm/HTTPS/forward_ccert_as_header = true
+icm/HTTPS/accept_forwarded_cert_via_http = true
+
+wdisp/ssl_ignore_host_mismatch = 1
+enque/encni/set_so_keepalive = true
+enque/server/replication = true
+Autostart = 0
+icm/max_threads = 2000

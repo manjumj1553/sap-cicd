@@ -1,0 +1,19 @@
+NW_GetMasterPassword.masterPwd = {{ sap_nw_master_password }}
+nwUsers.sidadmPassword = {{ sap_nw_sidadm_password }}
+NW_IcmAuth.webadmPassword = {{ sap_nw_schema_password }} 
+
+NW_GetSidNoProfiles.sid = {{ sap_nw_sid | upper }} 
+NW_Webdispatcher_Instance.configureSystemConnectivity = false
+NW_Webdispatcher_Instance.wdInstanceNumber = {{ sap_nw_instance_number }} 
+NW_webdispatcher_Instance.activateICF = false
+NW_webdispatcher_Instance.msHTTPPort = 
+NW_webdispatcher_Instance.rfcUser = DDI
+NW_webdispatcher_Instance.scenarioSize = 500
+NW_webdispatcher_Instance.useWdHTTPPort = true
+NW_webdispatcher_Instance.wdHTTPPort = 8080
+NW_webdispatcher_Instance.wdHTTPSPort = 44380
+NW_webdispatcher_Instance.wdVirtualHostname = {{ ansible_hostname }}
+archives.downloadBasket = {{ sap_nw_kernel_files }}
+nwUsers.sapadmUID = {{ sap_nw_sapadm_uid }} 
+nwUsers.sapsysGID = {{ sap_sapsys_gid }}
+nwUsers.sidAdmUID = {{ sap_nw_sidadm_uid }}

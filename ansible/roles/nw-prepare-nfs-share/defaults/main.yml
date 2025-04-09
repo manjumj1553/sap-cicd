@@ -1,0 +1,4 @@
+file_path: /etc/exports
+file_content: |
+  /sapmnt {{ sap_target_machine_ip }}(rw,no_root_squash,sync)
+  /usr/sap/trans {{ sap_target_machine_ip }}(rw,no_root_squash,sync)

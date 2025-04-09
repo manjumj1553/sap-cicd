@@ -1,0 +1,13 @@
+- name: update the gcloud sdk to latest version 
+  shell: |
+    yes | gcloud components update
+
+- name: disable gcloud sdk usage reporting 
+  command: gcloud config set disable_usage_reporting false
+
+- name: Verify the version information for gcloud
+  command: gcloud --version
+  register: gcloud_version_output
+
+- debug:
+    msg: "{{ gcloud_version_output.stdout }}"

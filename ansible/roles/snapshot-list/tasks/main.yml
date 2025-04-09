@@ -1,0 +1,19 @@
+- name: pas instance snapshot gathering 
+  include_tasks: pas.yml 
+  when: '{{instance_type=="pas"}}'
+
+- name: aas instance snapshot gathering 
+  include_tasks: aas.yml 
+  when: '{{instance_type=="aas"}}'
+
+- name: webdisp instance snapshot gathering 
+  include_tasks: webdisp.yml 
+  when: '{{instance_type=="webdisp"}}'
+
+- name: slt instance snapshot gathering 
+  include_tasks: slt.yml 
+  when: '{{instance_type=="slt"}}'
+
+- name: standard-aas instance snapshot gathering 
+  include_tasks: standard-aas.yml 
+  when: '{{instance_type=="standardaas"}}'

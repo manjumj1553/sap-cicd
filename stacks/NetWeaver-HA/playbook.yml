@@ -1,0 +1,117 @@
+# Copyright 2021 Google LLC
+#
+# Licensed under the Apache License, Version 2.0 (the "License");
+# you may not use this file except in compliance with the License.
+# You may obtain a copy of the License at
+#
+#     https://www.apache.org/licenses/LICENSE-2.0
+#
+# Unless required by applicable law or agreed to in writing, software
+# distributed under the License is distributed on an "AS IS" BASIS,
+# WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+# See the License for the specific language governing permissions and
+# limitations under the License.
+
+- name: SAP NW deploy
+  hosts: 127.0.0.1
+  connection: local
+  roles:
+  - role: forminator
+    vars:
+      sap_tf_project_path: './tf'
+      sap_state: '{{ state | default("present") }}'
+      sap_hana_backint_bucket_name: '{{ sap_hana_backint_bucket_name | default("") }}'
+      fqdn_name: '{{ sap_host_fqdn }}'
+      sap_tf_variables:
+        project_id: '{{ sap_project_id }}'
+        source_nw_image_name: '{{ sap_nw_source_image_name }}'
+        source_nw_image_project: '{{ sap_nw_source_image_project }}'
+        subnetwork_nw: '{{ sap_nw_subnetwork }}'
+        subnetwork_project: '{{ sap_subnetwork_project_id | default("") }}'
+        primary_zone: '{{ sap_primary_zone }}'
+        secondary_zone: '{{ sap_secondary_zone }}'
+        ascs_health_check_port: '{{ sap_nw_ascs_health_check_port | default("60000") }}'
+        ers_health_check_port: '{{ sap_nw_ers_health_check_port | default("60001") }}'
+        ascs_instance_name: '{{ sap_ascs_instance_name }}'
+        ascs_instance_ip: '{{ sap_ascs_instance_ip }}'
+        ers_instance_name: '{{ sap_ers_instance_name }}'
+        ers_instance_ip: '{{ sap_ers_instance_ip}}'
+        pas_instance_name: '{{ sap_pas_instance_name | default("test-pas-instance") }}'
+        pas_instance_ip: '{{ sap_pas_instance_ip }}'
+        ers_ilb_ip: '{{ sap_ers_ilb_ip }}'
+        ascs_ilb_ip: '{{ sap_ascs_ilb_ip }}'
+        ascs_ilb_name: '{{ sap_ascs_ilb_name }}'
+        ers_ilb_name: '{{ sap_ers_ilb_name }}'
+        gce_ssh_user: '{{ sap_ssh_user }}'
+        gce_ssh_pub_key_file: '{{ sap_ssh_pub_key }}'
+        nw_autodelete_boot_disk: '{{ sap_nw_autodelete_boot_disk | default(true) }}'
+        nw_boot_disk_size: '{{ sap_nw_boot_disk_size | default(30) }}'
+        nw_boot_disk_type: '{{ sap_nw_boot_disk_type | default("pd-balanced") }}'
+        nw_usrsap_disk_type: '{{ sap_nw_usrsap_disk_type | default("pd-balanced") }}'
+        nw_swap_disk_type: '{{ sap_nw_swap_disk_type | default("pd-balanced") }}' 
+        pas_boot_disk_type: '{{ sap_pas_boot_disk_type | default("pd-balanced") }}'
+        pas_usrsap_disk_type: '{{ sap_pas_usrsap_disk_type | default("pd-balanced") }}'
+        pas_swap_disk_type: '{{ sap_pas_swap_disk_type | default("pd-balanced") }}' 
+        nw_instance_type: '{{ sap_nw_instance_type | default("n2d-standard-4") }}'
+        nw_as_instance_type: '{{ sap_nw_as_instance_type | default("n2d-standard-8") }}'
+        nw_network_tags: '{{ sap_nw_network_tags | default(["allow-internet-egress"]) }}'
+        nw_service_account_email: '{{ sap_nw_service_account_email | default("{}@{}.iam.gserviceaccount.com".format(sap_nw_service_account_name | default("sap-common-sa"), sap_project_id)) }}'
+        nw_swap_disk_size: '{{ sap_nw_swap_disk_size | default(30) }}'
+        nw_pas_swap_disk_size: '{{ sap_nw_pas_swap_disk_size | default(30) }}'
+        nw_usrsap_disk_size: '{{ sap_nw_usrsap_disk_size | default(20) }}'
+        nw_pas_usrsap_disk_size: '{{ sap_nw_pas_usrsap_disk_size | default(50) }}'
+        ascs_instance_group_name: '{{ sap_ascs_instance_group_name }}'
+        ers_instance_group_name: '{{ sap_ers_instance_group_name }}'
+        ascs_health_check_name: '{{ ascs_health_check_name }}'
+        ascs_backend_service_name: '{{ ascs_backend_service_name }}'
+        ers_health_check_name: '{{ ers_health_check_name }}'
+        ers_backend_service_name: '{{ ers_backend_service_name }}'
+        pas_alias_ip: '{{ sap_pas_alias_ip }}'
+        nw_pd_kms_key: '{{ sap_nw_pd_kms_key }}'
+        nw_ascs_labels: '{{ sap_nw_ascs_labels }}'
+        nw_ers_labels: '{{ sap_nw_ers_labels }}'
+        nw_pas_labels: '{{ sap_nw_pas_labels }}'
+#  - role: gcp-secrets-manager
+  tags: [nw, assertions]
+
+- name: SAP application configure
+  hosts: nw
+  become: yes
+  become_user: root  
+  roles:
+  - role: nw-ha
+    vars:
+      sap_hana_vip: '{{ sap_hana_ilb_ip }}'
+      sap_nw_ascs_vip: '{{ sap_ascs_ilb_ip }}'
+      sap_nw_ers_vip: '{{ sap_ers_ilb_ip }}'
+      sap_nw_pas_alias_ip: '{{ sap_pas_alias_ip }}'
+      sap_nw_ascs_health_check_port: '{{ sap_nw_ascs_health_check_port }}'
+      sap_nw_ers_health_check_port: '{{ sap_nw_ers_health_check_port }}'
+      sap_nw_product_and_version: '{{ sap_nw_product_and_version }}'
+  tags: [nw]
+
+- name: Reboot ASCS, ERS and PAS
+  hosts: 127.0.0.1
+  connection: local 
+  roles:
+  - role: system-reboot
+    vars:
+      instances:
+        - name: "{{ sap_ascs_instance_name }}"
+          zone: "{{ sap_primary_zone }}"
+        - name: "{{ sap_ers_instance_name }}"
+          zone: "{{ sap_secondary_zone }}"
+        - name: "{{ sap_pas_instance_name }}"
+          zone: "{{ sap_primary_zone }}"
+    when: groups.get('nw', []) | length > 0
+  tags: [nw]
+
+- name: Cluster Maintenance after reboot
+  hosts: nw
+  become: yes
+  become_user: root 
+  roles:
+  - role: cluster-maintenance
+    vars:
+      sap_nw_user: '{{ sap_nw_sid | lower }}adm'
+  tags: [nw]

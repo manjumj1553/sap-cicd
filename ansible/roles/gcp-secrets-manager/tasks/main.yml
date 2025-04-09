@@ -1,0 +1,63 @@
+---
+
+- name: get hana secrets from gcp secrets manager
+  script: gcp_access_secret_version.py --projectId={{ sap_project_id }} --secretId={{ sap_hana_gsm_secret_id }} --secretIdVersion=latest
+  args:
+    executable: python3
+  register: hana_password
+  when: sap_hana_gsm_secret_id is defined
+
+- name: get nw secrets from gcp secrets manager
+  script: gcp_access_secret_version.py --projectId={{ sap_project_id }} --secretId={{ sap_nw_gsm_secret_id }} --secretIdVersion=latest
+  args:
+    executable: python3
+  register: nw_password
+  when: sap_nw_gsm_secret_id is defined
+
+- name: get daa secrets from gcp secrets manager
+  script: gcp_access_secret_version.py --projectId={{ sap_project_id }} --secretId={{ sap_daa_gsm_secret_id }} --secretIdVersion=latest
+  args:
+    executable: python3
+  register: daa_adm_password
+  when: sap_daa_gsm_secret_id is defined
+
+- name: sap hana password set fact on hana nodes
+  set_fact: 
+    sap_hana_password: '{{ hana_password.stdout_lines|last }}'
+  delegate_to: "{{ item }}"
+  delegate_facts: true
+  loop: "{{ groups['hana'] }}"
+  when: ( sap_hana_gsm_secret_id is defined ) and ( 'hana' in groups )
+
+- name: sap hana password set fact on nw nodes
+  set_fact: 
+    sap_hana_password: '{{ hana_password.stdout_lines|last }}'
+  delegate_to: "{{ item }}"
+  delegate_facts: true
+  loop: "{{ groups['nw'] }}"
+  when: ( sap_hana_gsm_secret_id is defined ) and ( 'nw' in groups )
+
+- name: sap nw password set fact on nw nodes
+  set_fact: 
+    sap_nw_password: '{{ nw_password.stdout_lines|last }}'
+  delegate_to: "{{ item }}"
+  delegate_facts: true
+  loop: "{{ groups['nw'] }}"
+  when: sap_nw_gsm_secret_id is defined
+
+- name: sap daa password set fact on hana nodes
+  set_fact: 
+    sap_daa_adm_password: '{{ daa_adm_password.stdout_lines|last }}'
+  delegate_to: "{{ item }}"
+  delegate_facts: true
+  loop: "{{ groups['hana'] }}"
+  when: ( sap_daa_gsm_secret_id is defined ) and ( 'hana' in groups )
+
+- name: sap daa password set fact on nw nodes
+  set_fact: 
+    sap_daa_adm_password: '{{ daa_adm_password.stdout_lines|last }}'
+  delegate_to: "{{ item }}"
+  delegate_facts: true
+  loop: "{{ groups['nw'] }}"
+  when: ( sap_daa_gsm_secret_id is defined ) and ( 'nw' in groups )
+

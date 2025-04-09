@@ -1,0 +1,56 @@
+
+# Required variables
+
+# Project where resources are created.
+sap_project_id: sap-iac-test
+
+# Subnetwork for nw network interfaces.
+sap_subnetwork: db-central
+
+# Define sap_subnetwork_project_id if using a shared VPC.
+sap_subnetwork_project_id: sap-iac-test
+
+sap_source_image_name: rhel-8-8-sap-v20241210
+sap_source_image_project: rhel-sap-cloud
+
+# Terraform state bucket.
+sap_tf_state_bucket: sap-terraform-state-bg-mj
+# Prefix for state file in Terraform state bucket.
+sap_tf_state_bucket_prefix: PROD-WEBDISP-SA-20250321
+
+
+sap_nw_zone: us-central1-a
+sap_nw_instance_name: webdispsaapp
+sap_nw_instance_ip: 10.5.0.70
+sap_nw_instance_type: n1-standard-2
+
+sap_nw_boot_disk_size: 50
+sap_nw_boot_disk_type: pd-ssd
+sap_nw_autodelete_boot_disk: true
+sap_nw_usrsap_disk_size: 10
+sap_nw_usrsap_disk_type: pd-ssd
+sap_nw_create_instance_group: false     #Do not modify
+sap_nw_instance_group_name:             #Do not modify
+sap_nw_service_account_email: 811811474621-compute@developer.gserviceaccount.com
+sap_nw_network_tags: ["sap-allow-all"]
+sap_nw_pd_kms_key: 'projects/sap-iac-test/locations/global/keyRings/paypal-ring/cryptoKeys/paypal-key'
+sap_nw_labels: 
+  env: prod
+
+
+sap_ssh_user: mahekar
+sap_nw_webdisp_sa_sid: WSA
+sapmnt_nfs_server_path: 10.167.224.4:/paypalvol1/WSA
+
+sap_host_fqdn: "paypal.com"
+sap_nw_install_files_bucket: sap-deployment-media
+sap_nw_gsm_secret_id: hana_default_pass
+sap_nw_backint_install: true
+
+sap_nw_sidadm_uid: 2000
+sap_nw_sapadm_uid: 2001
+sap_sapsys_gid: 2626
+sap_sapinst_nw: true
+sap_nw_product_and_version: 'WebDispatcher/753'
+sap_nw_instance_number: "00"
+sap_nw_password: Paypal12345
