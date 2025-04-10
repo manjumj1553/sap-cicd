@@ -14,11 +14,11 @@
  * limitations under the License.
  */
 
-output "inventory" {
-  value = [
-    {
-      host   = module.gcp_netweaver_webdisp_sa.instance_ips[0],
-      groups = ["nw"],
-    }
-  ]
+terraform {
+  required_version = ">= 0.12"
+  required_providers {
+    google = "= 3.31.0"
+    local  = "= 1.4.0"
+    null   = "= 2.1.2"
+  }
 }
