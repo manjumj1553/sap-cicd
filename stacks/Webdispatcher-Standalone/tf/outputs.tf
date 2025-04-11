@@ -15,10 +15,15 @@
  */
 
 output "inventory" {
-  value = [
-    {
-      host   = module.gcp_netweaver_webdisp_sa.instance_ips[0],
-      groups = ["nw"],
-    }
-  ]
+  value = module.gcp_netweaver_webdisp_sa.inventory
+}
+
+output "nw_webdisp_sa_instance_name" {
+  description = "Name of Webdispatch Standalone NetWeaver instance."
+  value       = module.gcp_netweaver_webdisp_sa.instance_name
+}
+
+output "zone" {
+  description = "Compute Engine instance deployment zone"
+  value       = var.sap_nw_zone
 }
