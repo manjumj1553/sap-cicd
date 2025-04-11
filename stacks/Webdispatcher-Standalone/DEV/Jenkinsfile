@@ -7,7 +7,9 @@ pipeline {
         GIT_REPO_URL = "github.com/haprcr/sap-cicd-devops"
         GIT_USER_EMAIL = "harshapriyacr@google.com"
         GIT_USER_NAME = "harshapriyacr"
-        FOLDER = "stacks/Webdispatcher-Standalone/DEV"
+        TF_FOLDER = "stacks/Webdispatcher-Standalone/tf"
+        ANSIBLE_FOLDER = "stacks/Webdispatcher-Standalone"
+        GIT_FOLDER = "stacks/Webdispatcher-Standalone/DEV"
         create_instance_group = 'false'
         instance_group_name = ''
         product_and_version = 'WebDispatcher/753'
@@ -17,8 +19,7 @@ pipeline {
         deployvars_filename = "deploy-vars.yml"
         BUCKET_ID_FILES = "webdispatcher_standalone_cicd"
         TERRAFORM_BUCKET_ID = "bucket-cicd-jenkins"
-        TERRAFORM_PREFIX_ID = "jenkinsApr84"
-        FOLDER_NAME = "CID_Webdispatcher-Standalone_20250327095252"
+        TERRAFORM_PREFIX_ID = "jenkins2Apr11"
         PROJECT_ID = "sap-iac-test"
         SUBNETWORK_PROJECT = "sap-iac-test"
         SOURCE_IMAGE_NAME = "rhel-9-2-sap-v20241210"
@@ -45,7 +46,7 @@ pipeline {
       string(name: 'sap_nw_instance_name', defaultValue: 'webdispsa2', description: "Compute Engine Instance name") 
       string(name: 'sap_nw_zone', defaultValue: 'us-central1-a', description: "Instance Zone") 
       string(name: 'subnetwork', defaultValue: 'db-central', description: "Subnetwork for the instance") 
-      string(name: 'sap_nw_instance_ip', defaultValue: '10.5.0.112', description: "Private IP Address of the Instance") 
+      string(name: 'sap_nw_instance_ip', defaultValue: '10.5.0.116', description: "Private IP Address of the Instance") 
       choice(name: 'sap_nw_instance_type', choices: ['n1-standard-2', 'n1-standard-4'],  
         description: 'Machine type'
       ) 
@@ -63,11 +64,6 @@ pipeline {
         stage('Prepare TF variable file') {
             steps {
                 script {
-                    // withCredentials([string(credentialsId: 'git-key-new', variable: 'GIT_SECRET')]) {
-                    //     git url: "https://${GIT_USER_NAME}:$GIT_SECRET@${GIT_REPO_URL}", 
-                    //         branch: 'main'
-                    // }
-
                     def paramsMap = [:] 
                     params.each { key, value ->
                         if  (key == 'sap_nw_labels') {
@@ -108,9 +104,7 @@ pipeline {
                     paramsMap['sap_nw_create_instance_group'] = env.sap_nw_create_instance_group ? env.sap_nw_create_instance_group.toBoolean() : false
                     paramsMap['sap_nw_instance_group_name'] = env.sap_nw_instance_group_name ?: ""
                     paramsMap['sap_nw_product_and_version'] = env.product_and_version ? env.product_and_version:""
-                    // paramsMap.remove('sap_nw_password')
-                    writeFile file: "${env.FOLDER}/tf/terraform.tfvars.json", text: JsonOutput.toJson(paramsMap)
-                    // writeFile file: "${env.FOLDER}/tf/terraform.tfvars.json", text: JsonOutput.toJson(params)
+                    writeFile file: "${env.TF_FOLDER}/terraform.tfvars.json", text: JsonOutput.toJson(paramsMap)
                 }
             }
         }
@@ -122,13 +116,14 @@ pipeline {
                     def prefixId = "${env.TERRAFORM_PREFIX_ID}"
 
                     if (!bucketId || !prefixId) {
-                        error "Bucket and prefix ID not found for ${FOLDER}"
+                        error "Bucket and prefix ID not found for ${TF_FOLDER}"
                     }
 
-                    echo "Executing Terraform init and plan in ${FOLDER}/tf with backend bucket=${bucketId}, prefix=${prefixId}"
+                    echo "Executing Terraform init and plan in ${TF_FOLDER} with backend bucket=${bucketId}, prefix=${prefixId}"
 
                     withCredentials([file(credentialsId: 'gcp-key-new', variable: 'GOOGLE_APPLICATION_CREDENTIALS')]) {
-                    dir("${FOLDER}/tf") {
+
+                    dir("${TF_FOLDER}") {
                                         sh """
                                             terraform init \\
                                                 -backend-config="bucket=${bucketId}" \\
@@ -144,11 +139,10 @@ pipeline {
                     
                     def approverEmail = 'priya.harsha724@gmail.com'
                     def subject = "Approval Required: Terraform Execution"
-                    def logFilePath = "${FOLDER}/tf/terraform-plan.log"
+                    def logFilePath = "${TF_FOLDER}/terraform-plan.log"
 
                     // Read Terraform Plan Output and truncate if too long
                     def planOutput = readFile(logFilePath)
-                    // .take(5000) // Limits email size
 
                     def body = """
                         <p>Terraform execution is requested. Please review and approve or reject.</p>
@@ -179,7 +173,7 @@ pipeline {
                     input message: "Do you want to proceed with Terraform Configuration Deployment?", ok: "Proceed"
 
                     withCredentials([file(credentialsId: 'gcp-key-new', variable: 'GOOGLE_APPLICATION_CREDENTIALS')]) {
-                        dir("${FOLDER}/tf") {
+                        dir("${TF_FOLDER}") {
                             sh "terraform apply -auto-approve -var-file=\"terraform.tfvars.json\""
                         }
                     }
@@ -196,8 +190,8 @@ pipeline {
         stage('Prepare Host Inventory') {
             steps {
                 script {
-                    dir("${FOLDER}/tf") {
-                            echo "Extracting Terraform output for ${FOLDER}"
+                    dir("${TF_FOLDER}") {
+                            echo "Extracting Terraform output for ${TF_FOLDER}"
 
                             // Get Terraform JSON output
                             def terraformOutput = sh(script: 'terraform output -json', returnStdout: true).trim()
@@ -230,14 +224,7 @@ pipeline {
                                 yamlContent += "       ${host}:\n         instance_name: ${instanceName}\n"
                             }
 
-                            // def yamlFilePath = "../tf-vars/inventory.yml"
-                            // writeFile file: yamlFilePath, text: yamlContent
-
-                            // Ensure the file is placed inside the Jenkins workspace repository
-                            // def yamlFilePath = "${env.WORKSPACE}/tf-vars/inventory.yml"
-                            // writeFile file: yamlFilePath, text: yamlContent
-
-                            def yamlFilePath = "${env.WORKSPACE}/${env.FOLDER}/inventory.yml"
+                            def yamlFilePath = "${env.WORKSPACE}/${env.ANSIBLE_FOLDER}/inventory.yml"
                             writeFile file: yamlFilePath, text: yamlContent
 
                             echo "Inventory YAML file created at ${yamlFilePath}"
@@ -270,18 +257,11 @@ pipeline {
                         sap_nw_instance_number: "${params.sap_nw_instance_number}"
                         sap_nw_password: "${env.SAP_NW_PASSWORD}"
                     """.stripIndent()
-
-                    // writeFile file: DEPLOY_VARS_FILE, text: yamlContent
                     
-                    sh "mkdir -p ${env.FOLDER}/vars"
+                    sh "mkdir -p ${env.ANSIBLE_FOLDER}/vars"
 
-                    writeFile file: "${env.FOLDER}/vars/deploy-vars.yml", text: yamlContent
-
-
-                    dir("${FOLDER}/vars") {
-                        sh "cat deploy-vars.yml"
-                    }
-                    
+                    writeFile file: "${env.ANSIBLE_FOLDER}/vars/deploy-vars.yml", text: yamlContent
+ 
                 }
             }
         }
@@ -295,7 +275,7 @@ pipeline {
             def retryDelay = 40 // Delay between retries (seconds)
 
             // Read the inventory.yml file as YAML
-            def inventoryData = readYaml file: "${FOLDER}/inventory.yml"
+            def inventoryData = readYaml file: "${env.ANSIBLE_FOLDER}/inventory.yml"
             def inventoryHosts = []
 
             // Navigate through YAML to extract host IPs
@@ -371,7 +351,7 @@ pipeline {
                         body: body_exe,
                         mimeType: 'text/html'
                     )
-                    dir("${FOLDER}") {
+                    dir("${ANSIBLE_FOLDER}") {
 
                             ansiblePlaybook(
                                 disableHostKeyChecking: true,
@@ -385,6 +365,7 @@ pipeline {
                                 ]
                             )
 
+                    }
 
                     def yamlContent = """
                         sap_nw_zone: ${params.sap_nw_zone}
@@ -404,12 +385,9 @@ pipeline {
                         sap_nw_instance_number: "${params.sap_nw_instance_number}"
                     """.stripIndent()
 
-                        // writeFile file: DEPLOY_VARS_FILE, text: yamlContent
-
-                        writeFile file: "${env.FOLDER}/vars/deploy-vars.yml", text: yamlContent
-                    }
+                    writeFile file: "${env.ANSIBLE_FOLDER}/vars/deploy-vars.yml", text: yamlContent
                     // Send mail for successful deployment
-                    def subject_cmp = "Webdispatcher-Standalone Deployment Successfully Completed"
+                    def subject_cmp = "Webdispatcher-Standalone Deployment Successfully Completed in DEV environment"
 
                     def body_cmp = """
                         <html>
@@ -446,41 +424,16 @@ pipeline {
             }
         }
 
-
-        // stage('Add the files to a bucket') {
-        //     steps {
-        //         script {
-        //             withCredentials([file(credentialsId: 'gcp-key-new', variable: 'GOOGLE_APPLICATION_CREDENTIALS')]) {
-        //                 dir("${env.WORKSPACE}") {
-        //                     def timestamp = new Date().format("yyyyMMddHHmmss")
-        //                     def gcs_folder_name = "${params.webdisp_sa_sid}_${env.FOLDER.tokenize("/")[-1]}_${timestamp}"
-        //                     // def gcs_folder_name = "CID_Webdispatcher-Standalone_20250327095252"
-        //                     def tfvarsFile = "${env.FOLDER}/tf/terraform.tfvars.json"
-                            // def inventoryFile = "${env.FOLDER}/inventory.yml"
-                            // def deployvarsFile = "${env.FOLDER}/vars/deploy-vars.yml"
-        //                     // --key-file=${GOOGLE_APPLICATION_CREDENTIALS}
-
-        //                     sh """
-        //                         gsutil cp "./${tfvarsFile}" gs://${env.BUCKET_ID_FILES}/${gcs_folder_name}/terraform.tfvars.json
-        //                         gsutil cp "./${inventoryFile}" gs://${env.BUCKET_ID_FILES}/${gcs_folder_name}/inventory.yml
-        //                         gsutil cp "./${deployvarsFile}" gs://${env.BUCKET_ID_FILES}/${gcs_folder_name}/deploy-vars.yml
-        //                     """
-        //                 }
-        //             }
-        //         }
-        //     }
-        // }
-
         stage('Add the files to Git Repository') {
             steps {
                 script {
                     withCredentials([string(credentialsId: 'git-key', variable: 'GIT_SECRET')]) {
                         def timestamp = new Date().format("yyyyMMddHHmmss")
                         def git_folder_name = "${params.sap_nw_webdisp_sa_sid}_${timestamp}"
-                        def target_folder = "${env.FOLDER}/${git_folder_name}"
-                        def tfvarsFile = "${env.FOLDER}/tf/terraform.tfvars.json"
-                        def inventoryFile = "${env.FOLDER}/inventory.yml"
-                        def deployvarsFile = "${env.FOLDER}/vars/deploy-vars.yml"
+                        def target_folder = "${env.GIT_FOLDER}/${git_folder_name}"
+                        def tfvarsFile = "${env.TF_FOLDER}/terraform.tfvars.json"
+                        def inventoryFile = "${env.ANSIBLE_FOLDER}/inventory.yml"
+                        def deployvarsFile = "${env.ANSIBLE_FOLDER}/vars/deploy-vars.yml"
 
                         sh """
                             mkdir -p ${target_folder}

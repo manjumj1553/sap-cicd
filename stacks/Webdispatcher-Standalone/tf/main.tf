@@ -15,7 +15,7 @@
  */
 
 module "gcp_netweaver_webdisp_sa" {
-  source                = "../../../../../terraform/modules/wedisp-standalone"
+  source                = "../../../terraform/modules/wedisp-standalone"
   project_id            = var.project_id
   subnetwork            = var.subnetwork
   subnetwork_project    = var.subnetwork_project

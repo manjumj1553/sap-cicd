@@ -7,18 +7,19 @@ pipeline {
         GIT_REPO_URL = "github.com/haprcr/sap-cicd-devops"
         GIT_USER_EMAIL = "harshapriyacr@google.com"
         GIT_USER_NAME = "harshapriyacr"
-        FOLDER = "stacks/HANA-Scaleup/SBX"
+        TF_FOLDER = "stacks/HANA-Scaleup/tf"
         ANSIBLE_ROLES_PATH = "${env.WORKSPACE}/ansible/roles"
+        ANSIBLE_FOLDER = "stacks/HANA-Scaleup"
+        GIT_FOLDER = "stacks/HANA-Scaleup/SBX"
         ANSIBLE_PRIVATE_KEY = "/var/lib/jenkins/.ssh/id_rsa"
         SSH_USER = "harshapriyacr"
         deployvars_filename = "deploy-vars.yml"
         BUCKET_ID_FILES = "hana_scaleup_cicd"
         TERRAFORM_BUCKET_ID = "bucket-cicd-jenkins"
-        TERRAFORM_PREFIX_ID = "jenkins1Apr7687"
+        TERRAFORM_PREFIX_ID = "jenkins1234Apr7687"
         sap_hana_backint_install = true
         sap_hana_backint_bucket_name = "sap-hana-state-bg-mj"
         sap_hana_install_files_bucket = "sap-deployment-media"
-        // sap_hana_sid = "OHC"
         sap_hana_instance_number = "00"
         sap_hana_password = "Paypal12345"
         sap_host_fqdn = "paypal.com"
@@ -49,8 +50,8 @@ pipeline {
     parameters {
         string(name: 'subnetwork', defaultValue: 'db-central', description: "Subnetwork name")
         string(name: 'sap_zone', defaultValue: 'us-central1-a', description: "SAP deployment zone")
-        string(name: 'sap_instance_name', defaultValue: 'hanascaleup04', description: "SAP instance name")
-        string(name: 'sap_instance_ip', defaultValue: '10.5.0.110', description: "SAP instance private IP")
+        string(name: 'sap_instance_name', defaultValue: 'hanascaleup11', description: "SAP instance name")
+        string(name: 'sap_instance_ip', defaultValue: '10.5.0.119', description: "SAP instance private IP")
         choice(name: 'sap_instance_type', choices: ['n1-highmem-32'],  
           description: 'Machine type'
         ) 
@@ -125,11 +126,11 @@ pipeline {
                     paramsMap['sap_pd_kms_key'] = env.SAP_PD_KMS_KEY
                     paramsMap['sap_hana_password'] = env.sap_hana_password
 
-                    writeFile file: "${env.FOLDER}/tf/terraform.tfvars.json", text: JsonOutput.toJson(paramsMap)
+                    writeFile file: "${env.TF_FOLDER}/terraform.tfvars.json", text: JsonOutput.toJson(paramsMap)
 
                     sh """
                         echo "Terraform TFVARS File..."
-                        cat ${env.FOLDER}/tf/terraform.tfvars.json
+                        cat ${env.TF_FOLDER}/terraform.tfvars.json
                     """
                 }
             }
@@ -144,13 +145,13 @@ pipeline {
                     def prefixId = "${env.TERRAFORM_PREFIX_ID}"
 
                     if (!bucketId || !prefixId) {
-                        error "Bucket and prefix ID not found for ${FOLDER}"
+                        error "Bucket and prefix ID not found for ${TF_FOLDER}"
                     }
 
-                    echo "Executing Terraform init and plan in ${FOLDER}/tf with backend bucket=${bucketId}, prefix=${prefixId}"
+                    echo "Executing Terraform init and plan in ${TF_FOLDER} with backend bucket=${bucketId}, prefix=${prefixId}"
 
                     withCredentials([file(credentialsId: 'gcp-key-new', variable: 'GOOGLE_APPLICATION_CREDENTIALS')]) {
-                    dir("${FOLDER}/tf") {
+                    dir("${TF_FOLDER}") {
                                         sh """
                                             terraform init \\
                                                 -backend-config="bucket=${bucketId}" \\
@@ -166,11 +167,10 @@ pipeline {
                     
                     def approverEmail = 'priya.harsha724@gmail.com'
                     def subject = "Approval Required: Terraform Execution"
-                    def logFilePath = "${FOLDER}/tf/terraform-plan.log"
+                    def logFilePath = "${TF_FOLDER}/terraform-plan.log"
 
                     // Read Terraform Plan Output and truncate if too long
                     def planOutput = readFile(logFilePath)
-                    // .take(5000) // Limits email size
 
                     def body = """
                         <p>Terraform execution is requested. Please review and approve or reject.</p>
@@ -201,7 +201,7 @@ pipeline {
                     input message: "Do you want to proceed with Terraform Configuration Deployment?", ok: "Proceed"
 
                     withCredentials([file(credentialsId: 'gcp-key-new', variable: 'GOOGLE_APPLICATION_CREDENTIALS')]) {
-                        dir("${FOLDER}/tf") {
+                        dir("${TF_FOLDER}") {
                             sh "terraform apply -auto-approve -var-file=\"terraform.tfvars.json\""
                         }
                     }
@@ -218,8 +218,8 @@ pipeline {
         stage('Prepare Host Inventory') {
             steps {
                 script {
-                    dir("${FOLDER}/tf") {
-                        echo "Extracting Terraform output for ${FOLDER}"
+                    dir("${TF_FOLDER}") {
+                        echo "Extracting Terraform output for ${TF_FOLDER}"
 
                         // Get Terraform JSON output
                         def terraformOutput = sh(script: 'terraform output -json', returnStdout: true).trim()
@@ -250,12 +250,13 @@ def yamlContent = """all:
 """
 
                         // Write YAML file
-                        def yamlFilePath = "${env.WORKSPACE}/${env.FOLDER}/inventory.yml"
+                        def yamlFilePath = "${env.WORKSPACE}/${env.ANSIBLE_FOLDER}/inventory.yml"
                         writeFile file: yamlFilePath, text: yamlContent
+
                         echo "Inventory YAML file created at ${yamlFilePath}"
 
                         // Print output
-                        dir("${env.WORKSPACE}/${env.FOLDER}") {
+                        dir("${env.WORKSPACE}/${env.ANSIBLE_FOLDER}") {
                             sh "cat inventory.yml"
                         }
                     }
@@ -289,13 +290,10 @@ def yamlContent = """all:
                         sap_zone: ${params.sap_zone}
                         sap_hana_password: ${env.sap_hana_password}
                     """.stripIndent()
+   
+                    sh "mkdir -p ${env.ANSIBLE_FOLDER}/vars"
 
-                        // sap_hana_instance_number: ${env.sap_hana_instance_number}
-                    
-                    sh "mkdir -p ${env.FOLDER}/vars"
-
-                    writeFile file: "${env.FOLDER}/vars/deploy-vars.yml", text: yamlContent
-                    
+                    writeFile file: "${env.ANSIBLE_FOLDER}/vars/deploy-vars.yml", text: yamlContent
                 }
             }
         }
@@ -309,7 +307,7 @@ def yamlContent = """all:
                     def retryDelay = 40 // Delay between retries (seconds)
 
                     // Read the inventory.yml file as YAML
-                    def inventoryData = readYaml file: "${FOLDER}/inventory.yml"
+                    def inventoryData = readYaml file: "${ANSIBLE_FOLDER}/inventory.yml"
                     def inventoryHosts = []
 
                     // Navigate through YAML to extract host IPs
@@ -386,7 +384,7 @@ def yamlContent = """all:
                         body: body_exe,
                         mimeType: 'text/html'
                     )
-                    dir("${FOLDER}") {
+                    dir("${ANSIBLE_FOLDER}") {
 
                             ansiblePlaybook(
                                 disableHostKeyChecking: true,
@@ -399,7 +397,7 @@ def yamlContent = """all:
                                     "ansible_user": SSH_USER
                                 ]
                             )
-
+                    }
 
                         def yamlContent = """
                             sap_project_id: ${params.project_id}
@@ -417,12 +415,8 @@ def yamlContent = """all:
                             sap_zone: ${params.sap_zone}
                         """.stripIndent()
 
-                        // writeFile file: DEPLOY_VARS_FILE, text: yamlContent
-
-                        writeFile file: "${env.FOLDER}/vars/deploy-vars.yml", text: yamlContent
-
-            
-                    }
+                        writeFile file: "${env.ANSIBLE_FOLDER}/vars/deploy-vars.yml", text: yamlContent
+                    
                     // Send mail for successful deployment
                     def subject_cmp = "HANA Scale-Up Deployment Successfully Completed in SBX environment"
 
@@ -431,7 +425,7 @@ def yamlContent = """all:
                         <body>
                             <p>Dear Team,</p>
 
-                            <p>The deployment of <strong>HANA Scale-Up</strong> system in the <strong>Sandbox</strong> has been successfully completed. Below are the details of the newly created instance:</p>
+                            <p>The deployment of <strong>HANA Scale-Up</strong> system in the <strong>Sandbox</strong> environment has been successfully completed. Below are the details of the newly created instance:</p>
 
                             <table cellspacing="0" cellpadding="5" border="1" style="border-collapse: collapse;">
                                 <tr><th align="left">Instance Name</th><td>${params.sap_instance_name}</td></tr>
@@ -523,7 +517,7 @@ def yamlContent = """all:
                     paramsMap['sap_network_tags'] = [env.SAP_NETWORK_TAGS]
                     paramsMap['sap_pd_kms_key'] = env.SAP_PD_KMS_KEY
 
-                    writeFile file: "${env.FOLDER}/tf/terraform.tfvars.json", text: JsonOutput.toJson(paramsMap)
+                    writeFile file: "${env.TF_FOLDER}/terraform.tfvars.json", text: JsonOutput.toJson(paramsMap)
                 }
             }
         }
@@ -535,10 +529,10 @@ def yamlContent = """all:
                     withCredentials([string(credentialsId: 'git-key', variable: 'GIT_SECRET')]) {
                         def timestamp = new Date().format("yyyyMMddHHmmss")
                         def git_folder_name = "${params.sap_hana_sid}_${timestamp}"
-                        def target_folder = "${env.FOLDER}/${git_folder_name}"
-                        def tfvarsFile = "${env.FOLDER}/tf/terraform.tfvars.json"
-                        def inventoryFile = "${env.FOLDER}/inventory.yml"
-                        def deployvarsFile = "${env.FOLDER}/vars/deploy-vars.yml"
+                        def target_folder = "${env.GIT_FOLDER}/${git_folder_name}"
+                        def tfvarsFile = "${env.TF_FOLDER}/terraform.tfvars.json"
+                        def inventoryFile = "${env.ANSIBLE_FOLDER}/inventory.yml"
+                        def deployvarsFile = "${env.ANSIBLE_FOLDER}/vars/deploy-vars.yml"
 
                         sh """
                             mkdir -p ${target_folder}

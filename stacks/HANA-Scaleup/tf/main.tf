@@ -15,7 +15,7 @@
  */
 
 module "gcp_hana" {
-  source                = "../../../../terraform/modules/hana-scaleup-new-disk"
+  source                = "../../../terraform/modules/hana-scaleup-new-disk"
   project_id            = var.project_id
   subnetwork            = var.subnetwork
   subnetwork_project    = var.subnetwork_project
