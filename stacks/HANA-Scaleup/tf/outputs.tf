@@ -14,11 +14,11 @@
  * limitations under the License.
  */
 
-terraform {
-  required_version = ">= 0.12"
-  required_providers {
-    google = "= 3.31.0"
-    local  = "= 1.4.0"
-    null   = "= 2.1.2"
-  }
+output "inventory" {
+  value = module.gcp_hana.inventory
+}
+
+output "instance_name" {
+  description = "Name of Webdispatch Standalone NetWeaver instance."
+  value       = module.gcp_hana.instance_name
 }
