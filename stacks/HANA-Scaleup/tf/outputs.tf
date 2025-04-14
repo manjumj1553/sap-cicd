@@ -19,6 +19,6 @@ output "inventory" {
 }
 
 output "instance_name" {
-  description = "Name of Webdispatch Standalone NetWeaver instance."
+  description = "Name of HANA Scaleup instance."
   value       = module.gcp_hana.instance_name
 }
