@@ -58,3 +58,5 @@ sap_maxdb_cpu_number: 2
 sap_maxdb_sessions: 100
 sap_maxdb_memory: 5329 
 sap_maxdb_log_size: 1000
+sap_maxdb_install_files_bucket: sap-deployment-media
+sap_maxdb_product_and_version: 'MaxDB/79'
