@@ -65,9 +65,7 @@
     name: sapmnt-nfs
   vars:
     sapmnt_nfs_server_path: '{{ sapmnt_secondary_nfs_server_path }}'
-  when: 
-  - not (sap_nw_is_primary | bool)
-  - hostvars[inventory_hostname].ansible_default_ipv4.address == sap_nw_secondary_instance_ip
+  when: hostvars[inventory_hostname].ansible_default_ipv4.address == sap_nw_secondary_instance_ip
 
 - name: include hosts-file role
   include_role:

@@ -35,14 +35,22 @@ variable "zone_a" {
   type        = string
 }
 
-variable "nw_script_path" {
-  description = "Path to the NetWeaver startup script (optional)."
-  default     = ""
+
+variable "gce_ssh_user" {
+  description = "GCE ssh user"
+}
+
+variable "gce_ssh_pub_key_file" {
+  description = "GCE ssh user pub key file name"
+  default     = "~/.ssh/id_rsa.pub"
 }
 
 variable "hana_script_path" {
-  description = "Path to the HANA startup script (optional)."
-  default     = ""
+  description = "hana startup script path"
+}
+
+variable "nw_script_path" {
+  description = "netweaver startup script path"
 }
 
 variable "webdisp_sid" {

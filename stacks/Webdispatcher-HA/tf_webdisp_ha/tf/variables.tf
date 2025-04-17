@@ -117,14 +117,12 @@ variable "gce_ssh_pub_key_file" {
   default     = "~/.ssh/id_rsa.pub"
 }
 
-variable "nw_script_path" {
-  description = "Path to the NetWeaver startup script (optional)."
-  default     = ""
+variable "hana_script_path" {
+  description = "hana startup script path"
 }
 
-variable "hana_script_path" {
-  description = "Path to the HANA startup script (optional)."
-  default     = ""
+variable "nw_script_path" {
+  description = "netweaver startup script path"
 }
 
 variable "sap_nw_pd_kms_key" {

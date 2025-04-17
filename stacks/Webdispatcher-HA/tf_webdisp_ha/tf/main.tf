@@ -15,7 +15,7 @@
  */
 
 module "gcp_netweaver_primary" {
-  source                = "../../../terraform/modules/wedisp-ha"
+  source                = "../../../../terraform/modules/wedisp-ha"
   subnetwork            = var.subnetwork_nw
   subnetwork_project    = var.subnetwork_project
   source_image_name     = var.source_image_name
@@ -44,7 +44,7 @@ module "gcp_netweaver_primary" {
 }
 
 module "gcp_netweaver_secondary" {
-  source                = "../../../terraform/modules/wedisp-ha"
+  source                = "../../../../terraform/modules/wedisp-ha"
   subnetwork            = var.subnetwork_nw
   subnetwork_project    = var.subnetwork_project
   source_image_name     = var.source_image_name
