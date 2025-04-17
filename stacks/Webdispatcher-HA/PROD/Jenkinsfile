@@ -544,7 +544,6 @@ pipeline {
                         sap_nw_secondary_instance_name: ${params.sap_nw_secondary_instance_name}
                         sap_ssh_user: ${env.GCE_SSH_USER}
                         sapmnt_secondary_nfs_server_path: ${params.sapmnt_secondary_nfs_server_path}
-                        sap_nw_password: "${env.SAP_NW_PASSWORD}"
                         sap_nw_product_and_version: '${env.product_and_version}'
                         sap_nw_sidadm_uid: ${params.sap_nw_sidadm_uid}
                         sap_nw_sapadm_uid: ${params.sap_nw_sapadm_uid}
