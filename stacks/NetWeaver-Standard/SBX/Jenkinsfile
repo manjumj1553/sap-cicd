@@ -73,26 +73,26 @@ pipeline {
     }
 
     parameters {
-      string(name: 'sap_hana_instance_name', defaultValue: '', description: "SAP HANA Instance name")
+      string(name: 'sap_hana_instance_name', defaultValue: 'nwhana1', description: "SAP HANA Instance name")
       string(name: 'zone', defaultValue: 'us-central1-a', description: "SAP Deployment Zone")
-      string(name: 'sap_hana_instance_ip', defaultValue: '', description: "Private IP Address of HANA Instance")
+      string(name: 'sap_hana_instance_ip', defaultValue: '10.5.0.111', description: "Private IP Address of HANA Instance")
       choice(name: 'sap_hana_instance_type', choices: ['n1-highmem-32'], description: 'Machine type')   
       string(name: 'subnetwork_hana', defaultValue: 'db-central', description: "Subnetwork for HANA instance") 
       string(name: 'sap_hana_labels', defaultValue: '{ app = "hana" }', description: "Instance labels (key-value pairs) for HANA instance") 
       string(name: 'sap_hana_addon_disk_name', defaultValue: 'lssshared', description: "SAP  HANAadditional disk name")
       string(name: 'sap_hana_addon_disk_size_gb', defaultValue: '50', description: "SAP HANA additional disk size in GB")
       string(name: 'sap_hana_addon_disk_type', defaultValue: 'pd-ssd', description: "SAP HANA additional disk type")
-      string(name: 'sap_nw_instance_name', defaultValue: '', description: "SAP Netweaver Instance Name")
-      string(name: 'sap_nw_instance_ip', defaultValue: '', description: "Private IP Address of Netweaver Instance")
+      string(name: 'sap_nw_instance_name', defaultValue: 'nwstd1', description: "SAP Netweaver Instance Name")
+      string(name: 'sap_nw_instance_ip', defaultValue: '10.5.0.122', description: "Private IP Address of Netweaver Instance")
       choice(name: 'sap_nw_instance_type', choices: ['n1-standard-8'], description: 'Machine type') 
       string(name: 'subnetwork_nw', defaultValue: 'db-central', description: "Subnetwork for Netweaver Instance")
       string(name: 'sap_nw_labels', defaultValue: '{ app = "nw" }', description: "Instance labels (key-value pairs) for Netweaver Instance") 
-      string(name: 'sap_hana_instance_number', defaultValue: '20', description: "SAP HANA Instance number")
-      string(name: 'sap_nw_ascs_instance_number', defaultValue: '21', description: "SAP NW ASCS Instance number")
-      string(name: 'sap_nw_pas_instance_number', defaultValue: '20', description: "SAP NW PAS Instance number")
+      string(name: 'sap_hana_instance_number', defaultValue: '00', description: "SAP HANA Instance number")
+      string(name: 'sap_nw_ascs_instance_number', defaultValue: '01', description: "SAP NW ASCS Instance number")
+      string(name: 'sap_nw_pas_instance_number', defaultValue: '00', description: "SAP NW PAS Instance number")
       string(name: 'sapmnt_nfs_server_path', defaultValue: '10.167.224.4:/paypalvol1/CID', description: "SAPMNT NFS path") 
-      string(name: 'sap_hana_sid', defaultValue: 'DY1', description: "SAP HANA SID")   
-      string(name: 'sap_nw_sid', defaultValue: 'DY1', description: "SAP Netweaver SID") 
+      string(name: 'sap_hana_sid', defaultValue: 'NW1', description: "SAP HANA SID")   
+      string(name: 'sap_nw_sid', defaultValue: 'NW1', description: "SAP Netweaver SID") 
       string(name: 'sap_hana_system_uid', defaultValue: '1030', description: "SAP HANA System UID") 
     }
 
@@ -184,7 +184,6 @@ pipeline {
                     paramsMap['sap_nw_use_public_ip'] = env.SAP_NW_USE_PUBLIC_IP
                     paramsMap['sap_nw_usrsap_disk_size'] = env.SAP_NW_USRSAP_DISK_SIZE
                     paramsMap['sap_nw_swap_disk_size'] = env.SAP_NW_SWAP_DISK_SIZE
-                    // paramsMap['sap_nw_additional_disk_type'] = env.SAP_NW_ADDITIONAL_DISK_TYPE
                     paramsMap['sap_nw_service_account_email'] = env.SAP_NW_SERVICE_ACCOUNT_EMAIL 
                     paramsMap['sap_nw_network_tags'] = [env.SAP_NW_NETWORK_TAGS]
                     paramsMap['sap_nw_pd_kms_key'] = env.SAP_NW_PD_KMS_KEY
@@ -299,10 +298,6 @@ pipeline {
                                 error "Error: 'inventory' or 'hana_instance_name' or 'nw_instance_name' is empty"
                             }
 
-                            // Extract group and host details
-                            // def groupName = inventoryList[0]?.groups[0] ?: "default-group"
-                            // def hosts = inventoryList.collectMany { it.host } ?: []
-
                             // Build YAML content
                             def yamlContent = "all:\n  children:\n"
 
@@ -326,11 +321,6 @@ pipeline {
                             writeFile file: yamlFilePath, text: yamlContent
 
                             echo "Inventory YAML file created at ${yamlFilePath}"
-
-                            // Print output
-                            dir("${env.WORKSPACE}/${env.ANSIBLE_FOLDER}") {
-                            sh "cat inventory.yml"
-                        }
                     }
                 }
             }
@@ -376,10 +366,6 @@ pipeline {
                     sh "mkdir -p ${env.ANSIBLE_FOLDER}/vars"
 
                     writeFile file: "${env.ANSIBLE_FOLDER}/vars/deploy-vars.yml", text: yamlContent
-
-                    dir("${env.ANSIBLE_FOLDER}/vars") {
-                        sh "cat deploy-vars.yml"
-                    } 
                 }
             }
         }
@@ -482,8 +468,8 @@ pipeline {
                                     "ansible_user": SSH_USER
                                 ]
                             )
-
-
+                    }
+                    
                     def yamlContent = """
                         sap_zone: ${params.zone}
                         sap_project_id: ${env.PROJECT_ID }
@@ -513,7 +499,6 @@ pipeline {
                     """.stripIndent()
 
                         writeFile file: "${env.ANSIBLE_FOLDER}/vars/deploy-vars.yml", text: yamlContent
-                    }
                     // Send mail for successful deployment
                     def subject_cmp = "NetWeaver-Standard Deployment Successfully Completed in SBX environment"
 
@@ -573,7 +558,8 @@ pipeline {
 
                             git config user.name "${GIT_USER_NAME}"
                             git config user.email "${GIT_USER_EMAIL}"
-
+                            
+                            git pull https://${GIT_USER_NAME}:${GIT_SECRET}@${GIT_REPO_URL} HEAD:main
                             git add ${target_folder}
                             git commit -m "Add deployment files for ${git_folder_name}" || echo 'No changes to commit'
                             git push https://${GIT_USER_NAME}:${GIT_SECRET}@${GIT_REPO_URL} HEAD:main
