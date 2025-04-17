@@ -176,6 +176,7 @@ pipeline {
                     paramsMap['sap_hana_shared_type'] = env.SAP_HANA_SHARED_DISK_TYPE
                     paramsMap['sap_hana_usr_type'] = env.SAP_HANA_USR_DISK_TYPE
                     paramsMap['sap_hana_swap_type'] = env.SAP_HANA_SWAP_DISK_TYPE
+                    paramsMap['sap_hana_additional_disk_type'] = env.SAP_HANA_ADDITIONAL_DISK_TYPE
 
                     paramsMap['sap_nw_boot_disk_size'] = env.SAP_NW_BOOT_DISK_SIZE
                     paramsMap['sap_nw_boot_disk_type'] = env.SAP_NW_BOOT_DISK_TYPE
@@ -187,6 +188,7 @@ pipeline {
                     paramsMap['sap_nw_service_account_email'] = env.SAP_NW_SERVICE_ACCOUNT_EMAIL 
                     paramsMap['sap_nw_network_tags'] = [env.SAP_NW_NETWORK_TAGS]
                     paramsMap['sap_nw_pd_kms_key'] = env.SAP_NW_PD_KMS_KEY
+                    paramsMap['sap_nw_additional_disk_type'] = env.SAP_NW_ADDITIONAL_DISK_TYPE
                     paramsMap['nw_script_path'] = ''
 
                     writeFile file: "${env.TF_FOLDER}/terraform.tfvars.json", text: JsonOutput.toJson(paramsMap)

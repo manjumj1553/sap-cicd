@@ -119,9 +119,9 @@ variable "sap_nw_additional_disk_type" {
   default     = "pd-ssd"
 }
 
-# variable "sap_hana_additional_disk_type" {
-#   description = "The GCE additional disk type for HANA. Set to pd-ssd (for PD SSD)."
-# }
+variable "sap_hana_additional_disk_type" {
+  description = "The GCE additional disk type for HANA. Set to pd-ssd (for PD SSD)."
+}
 
 variable "sap_nw_usrsap_disk_size" {
   description = "Size of /usr/sap for NetWeaver."
@@ -209,31 +209,6 @@ variable "sap_hana_shared_size" {
 
 variable "sap_hana_swap_size" {
   description = "HANA swap disk size in GB"
-}
-
-variable "sap_hana_data_type" {
-  description = "HANA data disk type"
-  default     = "pd-ssd"
-}
-
-variable "sap_hana_log_type" {
-  description = "HANA log disk type"
-  default     = "pd-ssd"
-}
-
-variable "sap_hana_usr_type" {
-  description = "HANA usr disk type"
-  default     = "pd-ssd"
-}
-
-variable "sap_hana_shared_type" {
-  description = "HANA shared disk type"
-  default     = "pd-ssd"
-}
-
-variable "sap_hana_swap_type" {
-  description = "HANA swap disk type"
-  default     = "pd-ssd"
 }
 
 variable "sap_nw_pd_kms_key" {
