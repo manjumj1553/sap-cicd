@@ -1,0 +1,539 @@
+import groovy.json.JsonOutput
+pipeline {
+    agent any
+    
+    environment {
+        GOOGLE_APPLICATION_CREDENTIALS = credentials('gcp-key-new')
+        GIT_REPO_URL = "github.com/haprcr/sap-cicd-devops"
+        GIT_USER_EMAIL = "mahekar@google.com"
+        GIT_USER_NAME = "mahekar"
+        TF_FOLDER = "stacks/MaxDB-Standard/tf"
+        ANSIBLE_ROLES_PATH = "${env.WORKSPACE}/ansible/roles"
+        ANSIBLE_FOLDER = "stacks/MaxDB-Standard"
+        GIT_FOLDER = "stacks/MaxDB-Standard/PRPROD"
+        ANSIBLE_PRIVATE_KEY = "/var/lib/jenkins/.ssh/id_rsa"
+        deployvars_filename = "deploy-vars.yml"
+        BUCKET_ID_FILES = "maxdb_standard_cicd"
+        TERRAFORM_BUCKET_ID = "bucket-cicd-jenkins"
+        TERRAFORM_PREFIX_ID = "jenkins16Apr2025"
+        sap_host_fqdn = "paypal.com"
+        sap_maxdb_password = "Paypal12345"
+        sapcs_admin_security_group = "sapsys"
+        sapcs_instance_http_port = "1090"
+        sapcs_instance_https_port = "1091"
+        sapcs_instance_https_script = "/sapcs"
+        sap_sidadm_uid = "2000"
+        sap_sapadm_uid = "2001"
+        sap_sapsys_gid = "2626"
+        sap_maxdb_cpu_number = "2"
+        sap_maxdb_sessions = "100"
+        sap_maxdb_memory = "5329"
+        sap_maxdb_log_size = "1000"
+        sap_maxdb_install_files_bucket = "sap-deployment-media"
+        sap_maxdb_product_and_version = "MaxDB/79"
+        PROJECT_ID = "sap-iac-test"
+        SUBNETWORK_PROJECT = "sap-iac-test"
+        SOURCE_IMAGE_NAME = "rhel-9-2-sap-v20241210"
+        SOURCE_IMAGE_PROJECT = "rhel-sap-cloud"
+        SSH_USER = "mahekar"
+        GCE_SSH_PUB_KEY_FILE = "~/.ssh/id_rsa.pub"
+        SAP_USE_PUBLIC_IP = "false"
+        SAP_BOOT_DISK_SIZE = "50"
+        SAP_BOOT_DISK_TYPE = "pd-ssd"
+        SAP_AUTODELETE_BOOT_DISK = 'true'
+        SAP_USRSAP_DISK_SIZE = "50"
+        SAP_USRSAP_DISK_TYPE = "pd-ssd"
+        SAP_SAPDB_DISK_SIZE = "50"
+        SAP_SAPDB_DISK_TYPE = "pd-ssd"
+        SAP_MAXDBBACKUP_DISK_SIZE = "50"
+        SAP_MAXDBBACKUP_DISK_TYPE = "pd-ssd"    
+        SAP_SERVICE_ACCOUNT_EMAIL = "811811474621-compute@developer.gserviceaccount.com"
+        SAP_NETWORK_TAGS = "sap-allow-all"
+        SAP_PD_KMS_KEY = "projects/sap-iac-test/locations/global/keyRings/paypal-ring/cryptoKeys/paypal-key"
+    }
+
+    parameters {
+        string(name: 'zone', defaultValue: 'us-central1-a', description: "GCP zone for instance deployment")
+        string(name: 'subnetwork', defaultValue: 'db-central', description: "Subnetwork name")
+        string(name: 'sap_maxdb_instance_name', defaultValue: 'uschxpmdb01', description: "Name of the MAXDB instance")
+        string(name: 'sap_maxdb_instance_ip', defaultValue: '10.5.0.11', description: "Static IP address for the MAXDB instance")
+        choice(name: 'sap_maxdb_instance_type', choices: ['n1-standard-4'],  
+          description: 'Machine type'
+        )
+        string(name: 'sap_maxdb_labels', defaultValue: '{ app = "maxdb" }', description: "Labels for the SAP instance (key-value pairs)")
+        string(name: 'sapmnt_nfs_server_path', defaultValue: '10.167.224.4:/paypalvol1/HXP', description: "NetApp Volume path")
+        string(name: 'sap_maxdbcs_sid', defaultValue: 'OHC', description: "System ID of MaxDB Content Server")
+        string(name: 'sap_maxdb_sid', defaultValue: 'OHC', description: "System ID of MaxDB")
+        string(name: 'sapcs_instance_number', defaultValue: '00', description: "SAPCS Instance Number")
+    }
+
+
+    stages {
+        stage('Prepare TF variable file') {
+            steps {
+                script {
+                    def paramsMap = [:]
+
+                    params.each { key, value ->
+                        if  (key == 'sap_maxdb_labels') {
+                            def parts = value.split('=')
+                            if (parts.size() == 2) {
+                                paramsMap[key] = [(parts[0].replaceAll('[\\{\\s]+','').trim()): parts[1].replaceAll('[\\}\\s"]+','').trim()]
+                            }
+                            else
+                            {
+                                paramsMap[key] = value
+                            }
+                        }  
+                        else if (key == 'subnetwork') {
+                            paramsMap[key] = value
+                        } 
+                        else {
+                            paramsMap[key] = value
+                        }
+                    }
+
+                    // Add environment variables
+                    paramsMap['project_id'] = env.PROJECT_ID 
+                    paramsMap['subnetwork_project'] = env.SUBNETWORK_PROJECT
+                    paramsMap['source_image_name'] = env.SOURCE_IMAGE_NAME
+                    paramsMap['source_image_project'] = env.SOURCE_IMAGE_PROJECT
+                    paramsMap['gce_ssh_user'] = env.SSH_USER
+                    paramsMap['gce_ssh_pub_key_file'] = env.GCE_SSH_PUB_KEY_FILE
+                    paramsMap['sap_maxdb_use_public_ip'] = env.SAP_USE_PUBLIC_IP
+                    paramsMap['sap_maxdb_boot_disk_size'] = env.SAP_BOOT_DISK_SIZE
+                    paramsMap['sap_maxdb_boot_disk_type'] = env.SAP_BOOT_DISK_TYPE
+                    paramsMap['sap_maxdb_autodelete_boot_disk'] = env.SAP_AUTODELETE_BOOT_DISK ? env.SAP_AUTODELETE_BOOT_DISK : true
+                    paramsMap['sap_maxdb_usrsap_disk_size'] = env.SAP_USRSAP_DISK_SIZE
+                    paramsMap['sap_maxdb_sapdb_disk_size'] = env.SAP_SAPDB_DISK_SIZE
+                    paramsMap['sap_maxdb_maxdbbackup_disk_size'] = env.SAP_MAXDBBACKUP_DISK_SIZE
+                    paramsMap['sap_maxdb_usrsap_disk_type'] = env.SAP_USRSAP_DISK_TYPE
+                    paramsMap['sap_maxdb_sapdb_disk_type'] = env.SAP_SAPDB_DISK_TYPE
+                    paramsMap['sap_maxdb_maxdbbackup_disk_type'] = env.SAP_MAXDBBACKUP_DISK_TYPE
+                    paramsMap['sap_maxdb_service_account_email'] = env.SAP_SERVICE_ACCOUNT_EMAIL 
+                    paramsMap['sap_maxdb_network_tags'] = [env.SAP_NETWORK_TAGS]
+                    paramsMap['sap_maxdb_pd_kms_key'] = env.SAP_PD_KMS_KEY
+
+                    writeFile file: "${env.TF_FOLDER}/terraform.tfvars.json", text: JsonOutput.prettyPrint(JsonOutput.toJson(paramsMap)) 
+                }
+            }
+        }
+
+        stage('Terraform Plan and Approve') {
+            steps {
+                script {
+                    def bucketId = "${env.TERRAFORM_BUCKET_ID}"
+                    def prefixId = "${env.TERRAFORM_PREFIX_ID}"
+
+                    if (!bucketId || !prefixId) {
+                        error "Bucket and prefix ID not found for ${TF_FOLDER}"
+                    }
+
+                    echo "Executing Terraform init and plan in ${TF_FOLDER} with backend bucket=${bucketId}, prefix=${prefixId}"
+
+                    withCredentials([file(credentialsId: 'gcp-key-new', variable: 'GOOGLE_APPLICATION_CREDENTIALS')]) {
+                    dir("${TF_FOLDER}") {
+                                        sh "cat terraform.tfvars.json"
+
+                                        sh """
+                                            terraform init \\
+                                                -backend-config="bucket=${bucketId}" \\
+                                                -backend-config="prefix=${prefixId}" \\
+                                                -reconfigure
+                                        """
+
+                                        // Capture Terraform plan output into a file
+                                        sh "terraform plan -var-file=terraform.tfvars.json -compact-warnings | tee terraform-plan.log"
+
+                                        
+                        }
+                    
+                    def approverEmail = 'mayuri.ym94@gmail.com'
+                    def subject = "Approval Required: Terraform Execution"
+                    def logFilePath = "${TF_FOLDER}/terraform-plan.log"
+
+                    // Read Terraform Plan Output and truncate if too long
+                    def planOutput = readFile(logFilePath)
+                    // .take(5000) // Limits email size
+
+                    def body = """
+                        <p>Terraform execution is requested. Please review and approve or reject.</p>
+                        
+                        <p><b>Job:</b> ${env.JOB_NAME}<br>
+                        <b>Build Number:</b> ${env.BUILD_NUMBER}<br>
+                        <b>URL:</b> <a href="${env.BUILD_URL}">${env.BUILD_URL}</a></p>
+
+                        <p><b>Terraform Plan Output (truncated):</b></p>
+                        <pre>${planOutput}</pre>
+
+                        <p><b>Approval Options:</b></p>
+                        <ul>
+                            <li><a href="${env.BUILD_URL}/input">✅ Approve Job</a></li>
+                            <li><a href="${env.BUILD_URL}/abort">❌ Reject Job</a></li>
+                        </ul>
+                    """
+
+                    mail(
+                        to: approverEmail,
+                        subject: subject,
+                        body: body,
+                        mimeType: 'text/html'
+                    )
+                }
+
+
+                input message: "Do you want to proceed with Terraform Configuration Deployment?", ok: "Proceed"
+
+                    withCredentials([file(credentialsId: 'gcp-key-new', variable: 'GOOGLE_APPLICATION_CREDENTIALS')]) {
+                        dir("${TF_FOLDER}") {
+                            sh "terraform apply -auto-approve -var-file=\"terraform.tfvars.json\""
+                        }
+                    }
+
+                    sh """
+                        echo "Fetching Terraform state file from GCS..."
+                        gsutil cat gs://${env.TERRAFORM_BUCKET_ID}/${env.TERRAFORM_PREFIX_ID}/default.tfstate
+                    """
+                }
+            }
+        }
+
+
+        stage('Prepare Host Inventory') {
+            steps {
+                script {
+                    dir("${TF_FOLDER}") {
+                            echo "Extracting Terraform output for ${TF_FOLDER}"
+
+                            // Get Terraform JSON output
+                            def terraformOutput = sh(script: 'terraform output -json', returnStdout: true).trim()
+                            def jsonOutput = readJSON(text: terraformOutput)
+
+                            // Extracting values properly
+                            def inventoryList = jsonOutput.inventory?.value ?: []
+                            def instanceNames = jsonOutput.nw_maxdb_instance_name?.value ?: []
+
+                            if (inventoryList.isEmpty() || instanceNames.isEmpty()) {
+                                error "Error: 'inventory' or 'nw_maxdb_instance_name' is empty"
+                            }
+
+                            // Build host -> instance_name mapping
+                            def hostMap = [:]
+                            inventoryList.each { item ->
+                                def ip = item.host
+                                def instanceName = instanceNames.tokenize('/').last()
+                                hostMap[ip] = instanceName
+                            }
+
+                            def groupName = inventoryList[0]?.groups[0] ?: "maxdb"
+                            def yamlContent = "all:\n  children:\n    ${groupName}:\n      hosts:\n"
+
+                            hostMap.each { ip, instanceName ->
+                            yamlContent += "        ${ip}:\n          instance_name: ${instanceName}\n"
+                        }
+
+                            def yamlFilePath = "${env.WORKSPACE}/${env.ANSIBLE_FOLDER}/inventory.yml"
+                            writeFile file: yamlFilePath, text: yamlContent
+
+                            echo "Inventory YAML file created at ${yamlFilePath}"
+                        }
+                    }
+                }
+        }
+
+        stage('Prepare Ansible Input Vars File') {
+            steps {
+                script {
+
+                    input message: "Do you want to proceed with Ansible Execution?", ok: "Proceed"
+
+                    def yamlContent = """
+                        sap_zone: "${params.zone}"
+                        sap_project_id: ${env.PROJECT_ID}
+                        sap_ssh_user: ${env.SSH_USER}
+                        sap_host_fqdn: "${env.sap_host_fqdn}"
+                        sapmnt_nfs_server_path:  ${params.sapmnt_nfs_server_path}
+                        sap_maxdbcs_sid: ${params.sap_maxdbcs_sid}
+                        sap_maxdb_sid: ${params.sap_maxdb_sid}
+                        sapcs_instance_number: "${params.sapcs_instance_number}"
+                        sap_maxdb_password: "${env.sap_maxdb_password}"
+                        sapcs_admin_security_group: ${env.sapcs_admin_security_group}
+                        sapcs_instance_http_port: ${env.sapcs_instance_http_port}
+                        sapcs_instance_https_port: ${env.sapcs_instance_https_port}
+                        sapcs_instance_https_script: ${env.sapcs_instance_https_script}
+                        sap_sidadm_uid: ${env.sap_sidadm_uid}
+                        sap_sapadm_uid: ${env.sap_sapadm_uid}
+                        sap_sapsys_gid: ${env.sap_sapsys_gid}
+                        sap_maxdb_cpu_number: ${env.sap_maxdb_cpu_number}
+                        sap_maxdb_sessions: ${env.sap_maxdb_sessions}
+                        sap_maxdb_memory: ${env.sap_maxdb_memory}
+                        sap_maxdb_log_size: ${env.sap_maxdb_log_size}
+                        sap_maxdb_install_files_bucket: ${env.sap_maxdb_install_files_bucket}
+                        sap_maxdb_product_and_version: '${env.sap_maxdb_product_and_version}'
+                    """.stripIndent()
+                    
+                    sh "mkdir -p ${env.ANSIBLE_FOLDER}/vars"
+
+                    writeFile file: "${env.ANSIBLE_FOLDER}/vars/deploy-vars.yml", text: yamlContent
+
+                }
+            }
+        }
+
+        stage('Wait for SSH Connection to All Hosts') {
+            steps {
+                script {
+                            def connectedHosts = [] as Set  // Use a Set to avoid duplicates
+                            def retryCount = 0
+                            def maxRetries = 5  // Maximum retry attempts
+                            def retryDelay = 40 // Delay between retries (seconds)
+
+                            // Read the inventory.yml file as YAML
+                            def inventoryData = readYaml file: "${env.ANSIBLE_FOLDER}/inventory.yml"
+                            def inventoryHosts = []
+
+                            // Navigate through YAML to extract host IPs
+                            if (inventoryData?.all?.children?.maxdb?.hosts) {
+                                inventoryHosts = inventoryData.all.children.maxdb.hosts.keySet().toList()
+                            } else {
+                                error "No hosts found in inventory.yml!"
+                            }
+
+                            echo "Hosts from inventory: ${inventoryHosts}"
+
+                            def sshUser = env.SSH_USER
+                            echo "Using SSH User: ${sshUser}"
+
+                            while (connectedHosts.size() < inventoryHosts.size() && retryCount < maxRetries) {
+                                def remainingHosts = inventoryHosts - connectedHosts  // Hosts that still need checking
+
+                                for (host in remainingHosts) {
+                                    echo "Attempting SSH connection to ${sshUser}@${host}, try #${retryCount + 1}"
+                                    def result = sh(script: "ssh -o StrictHostKeyChecking=no -o ConnectTimeout=10 ${sshUser}@${host} 'exit'", returnStatus: true)
+
+                                    if (result == 0) {
+                                        echo "SSH connection successful for ${host}"
+                                        connectedHosts.add(host)
+                                    } else {
+                                        echo "SSH connection failed for ${host}. Moving to the next host..."
+                                    }
+                                }
+
+                                retryCount++
+                                if (connectedHosts.size() < inventoryHosts.size() && retryCount < maxRetries) {
+                                    sleep(retryDelay)
+                                }
+                            }
+
+                            // Fail if any hosts remain unreachable
+                            if (connectedHosts.size() < inventoryHosts.size()) {
+                                error "Failed to connect to some hosts after ${maxRetries} attempts: ${(inventoryHosts - connectedHosts)}"
+                            } else {
+                                echo "All hosts are reachable. Proceeding with Ansible playbook execution."
+                            }
+                        }
+                    }
+                }
+
+        
+        stage("Execute Ansible"){
+            steps {
+                script {
+                    // Send mail for ansible execution
+                    def teamEmail = 'mayuri.ym94@gmail.com'
+                    def subject_exe = "Initiation of MaxDB Standard deployment"
+
+                    def body_exe = """
+                        <html>
+                        <body>
+                            <p>Dear Team,</p>
+                            <p>The deployment of <strong>MaxDB Standard system</strong> in the <strong>Pre-Production</strong> environment has been initiated from the Jenkins UI. Please find the build information below:</p>
+
+                            <ul>
+                                <li><strong>Job:</strong> ${env.JOB_NAME}</li>
+                                <li><strong>Build Number:</strong> ${env.BUILD_NUMBER}</li>
+                                <li><strong>Build URL:</strong> <a href="${env.BUILD_URL}">${env.BUILD_URL}</a></li>
+                            </ul>
+
+                            <p>Regards,</p>
+                        </body>
+                        </html>
+                    """
+
+                    mail(
+                        to: teamEmail,
+                        subject: subject_exe,
+                        body: body_exe,
+                        mimeType: 'text/html'
+                    )
+                    dir("${ANSIBLE_FOLDER}") {
+
+                            ansiblePlaybook(
+                                disableHostKeyChecking: true,
+                                installation: 'Ansible',
+                                inventory: "inventory.yml",
+                                playbook: "playbook.yml",
+                                extras: "-e @vars/${deployvars_filename}",
+                                extraVars: [
+                                    "ansible_ssh_private_key_file": ANSIBLE_PRIVATE_KEY,
+                                    "ansible_user": SSH_USER
+                                ]
+                            )
+                    }
+
+                    def yamlContent = """
+                        sap_zone: "${params.zone}"
+                        sap_project_id: ${env.PROJECT_ID}
+                        sap_ssh_user: ${env.SSH_USER}
+                        sap_host_fqdn: "${env.sap_host_fqdn}"
+                        sapmnt_nfs_server_path:  ${params.sapmnt_nfs_server_path}
+                        sap_maxdbcs_sid: ${params.sap_maxdbcs_sid}
+                        sap_maxdb_sid: ${params.sap_maxdb_sid}
+                        sapcs_instance_number: "${params.sapcs_instance_number}"
+                        sapcs_admin_security_group: ${env.sapcs_admin_security_group}
+                        sapcs_instance_http_port: ${env.sapcs_instance_http_port}
+                        sapcs_instance_https_port: ${env.sapcs_instance_https_port}
+                        sapcs_instance_https_script: ${env.sapcs_instance_https_script}
+                        sap_sidadm_uid: ${env.sap_sidadm_uid}
+                        sap_sapadm_uid: ${env.sap_sapadm_uid}
+                        sap_sapsys_gid: ${env.sap_sapsys_gid}
+                        sap_maxdb_cpu_number: ${env.sap_maxdb_cpu_number}
+                        sap_maxdb_sessions: ${env.sap_maxdb_sessions}
+                        sap_maxdb_memory: ${env.sap_maxdb_memory}
+                        sap_maxdb_log_size: ${env.sap_maxdb_log_size}
+                        sap_maxdb_install_files_bucket: ${env.sap_maxdb_install_files_bucket}
+                        sap_maxdb_product_and_version: '${env.sap_maxdb_product_and_version}'
+                    """.stripIndent()    
+
+                    writeFile file: "${env.ANSIBLE_FOLDER}/vars/deploy-vars.yml", text: yamlContent
+
+                    // Send mail for successful deployment
+                    def subject_cmp = "MaxDB Standard Deployment Successfully Completed in Pre-Production environment"
+
+                    def body_cmp= """
+                        <html>
+                        <body>
+                            <p>Dear Team,</p>
+
+                            <p>The deployment of MaxDB-Standard system has been successfully completed. Below are the details of the newly created instance:</p>
+
+                            <table cellspacing="0" cellpadding="5" border="1" style="border-collapse: collapse;">
+                                <tr><th align="left">Instance Name</th><td>${params.sap_maxdb_instance_name}</td></tr>
+                                <tr><th align="left">Zone</th><td>${params.zone}</td></tr>
+                                <tr><th align="left">Private IP Address</th><td>${params.sap_maxdb_instance_ip}</td></tr>
+                            </table>
+
+                            <p><strong>Build Information:</strong></p>
+                            <ul>
+                                <li><strong>Job:</strong> ${env.JOB_NAME}</li>
+                                <li><strong>Build Number:</strong> ${env.BUILD_NUMBER}</li>
+                                <li><strong>Build URL:</strong> <a href="${env.BUILD_URL}">${env.BUILD_URL}</a></li>
+                            </ul>
+
+                            <p>Best regards</p>
+                        </body>
+                        </html>
+                    """
+
+                    mail(
+                        to: teamEmail,
+                        subject: subject_cmp,
+                        body: body_cmp,
+                        mimeType: 'text/html'
+                    )
+                }
+            }
+        }
+
+
+        stage('Update TF variable file to remove the Password') {
+            steps {
+                script {
+                    def paramsMap = [:]
+
+                     params.each { key, value ->
+                        if  (key == 'sap_maxdb_labels') {
+                            def parts = value.split('=')
+                            if (parts.size() == 2) {
+                                paramsMap[key] = [(parts[0].replaceAll('[\\{\\s]+','').trim()): parts[1].replaceAll('[\\}\\s"]+','').trim()]
+                            }
+                            else
+                            {
+                                paramsMap[key] = value
+                            }
+                        }  
+                        else if (key == 'subnetwork') {
+                            paramsMap[key] = value
+                        }
+                        else {
+                            paramsMap[key] = value
+                        }
+                    }
+
+                    // Add environment variables
+                    paramsMap['project_id'] = env.PROJECT_ID 
+                    paramsMap['subnetwork_project'] = env.SUBNETWORK_PROJECT
+                    paramsMap['source_image_name'] = env.SOURCE_IMAGE_NAME
+                    paramsMap['source_image_project'] = env.SOURCE_IMAGE_PROJECT
+                    paramsMap['gce_ssh_user'] = env.SSH_USER
+                    paramsMap['gce_ssh_pub_key_file'] = env.GCE_SSH_PUB_KEY_FILE
+                    paramsMap['sap_maxdb_use_public_ip'] = env.SAP_USE_PUBLIC_IP
+                    paramsMap['sap_maxdb_boot_disk_size'] = env.SAP_BOOT_DISK_SIZE
+                    paramsMap['sap_maxdb_boot_disk_type'] = env.SAP_BOOT_DISK_TYPE
+                    paramsMap['sap_maxdb_autodelete_boot_disk'] = env.SAP_AUTODELETE_BOOT_DISK ? env.SAP_AUTODELETE_BOOT_DISK : true
+                    paramsMap['sap_maxdb_usrsap_disk_size'] = env.SAP_USRSAP_DISK_SIZE
+                    paramsMap['sap_maxdb_sapdb_disk_size'] = env.SAP_SAPDB_DISK_SIZE
+                    paramsMap['sap_maxdb_maxdbbackup_disk_size'] = env.SAP_MAXDBBACKUP_DISK_SIZE
+                    paramsMap['sap_maxdb_usrsap_disk_type'] = env.SAP_USRSAP_DISK_TYPE
+                    paramsMap['sap_maxdb_sapdb_disk_type'] = env.SAP_SAPDB_DISK_TYPE
+                    paramsMap['sap_maxdb_maxdbbackup_disk_type'] = env.SAP_MAXDBBACKUP_DISK_TYPE
+                    paramsMap['sap_maxdb_service_account_email'] = env.SAP_SERVICE_ACCOUNT_EMAIL 
+                    paramsMap['sap_maxdb_network_tags'] = [env.SAP_NETWORK_TAGS]
+                    paramsMap['sap_maxdb_pd_kms_key'] = env.SAP_PD_KMS_KEY
+
+                    writeFile file: "${env.TF_FOLDER}/terraform.tfvars.json", text: JsonOutput.toJson(paramsMap)
+                }
+            }
+        }
+
+
+        stage('Add the files to Git Repository') {
+            steps {
+                script {
+                    withCredentials([string(credentialsId: 'git-key', variable: 'GIT_SECRET')]) {
+                        def timestamp = new Date().format("yyyyMMddHHmmss")
+                        def git_folder_name = "${params.sap_maxdb_sid}_${timestamp}"
+                        def target_folder = "${env.GIT_FOLDER}/${git_folder_name}"
+                        def tfvarsFile = "${env.TF_FOLDER}/terraform.tfvars.json"
+                        def inventoryFile = "${env.ANSIBLE_FOLDER}/inventory.yml"
+                        def deployvarsFile = "${env.ANSIBLE_FOLDER}/vars/deploy-vars.yml"
+
+                        sh """
+                            mkdir -p ${target_folder}
+                            cp ${tfvarsFile} ${target_folder}/terraform.tfvars.json
+                            cp ${inventoryFile} ${target_folder}/inventory.yml
+                            cp ${deployvarsFile} ${target_folder}/deploy-vars.yml
+
+                            git config user.name "${GIT_USER_NAME}"
+                            git config user.email "${GIT_USER_EMAIL}"
+
+                            git add ${target_folder}
+                            git commit -m "Add deployment files for ${git_folder_name}" || echo 'No changes to commit'
+                            git push https://${GIT_USER_NAME}:${GIT_SECRET}@${GIT_REPO_URL} HEAD:main
+                        """
+                    }
+                }
+            }
+        }
+    }
+
+    post {
+                // Clean after build
+                always {
+                    cleanWs(cleanWhenNotBuilt: false,
+                            deleteDirs: true,
+                            disableDeferredWipeout: true,
+                            notFailBuild: true)
+                }
+    }
+}

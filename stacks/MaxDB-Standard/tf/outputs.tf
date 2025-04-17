@@ -17,3 +17,8 @@
 output "inventory" {
   value = module.gcp_maxdb.inventory
 }
+
+output "nw_maxdb_instance_name" {
+  description = "Name of MaxDB Standard instance."
+  value       = module.gcp_maxdb.instance_name
+}
