@@ -12,41 +12,6 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
-- hosts: 127.0.0.1
-  connection: local
-  roles:
-  - role: forminator
-    vars:
-      sap_tf_project_path: ./tf
-      sap_state: '{{ state | default("present") }}'
-      fqdn_name: '{{ sap_host_fqdn }}'
-      sap_tf_variables:
-        project_id: '{{ sap_project_id }}'
-        zone: '{{ sap_zone }}'
-        subnetwork: '{{ sap_subnetwork }}'
-        subnetwork_project: '{{ sap_subnetwork_project_id | default("") }}'
-        source_image_name: '{{ sap_source_image_name}}'
-        source_image_project: '{{ sap_source_image_project }}'
-        sap_maxdb_instance_name: '{{ sap_maxdb_instance_name }}'
-        sap_maxdb_instance_ip: '{{ sap_maxdb_instance_ip }}'
-        sap_maxdb_instance_type: '{{ sap_maxdb_instance_type }}'
-        sap_maxdb_use_public_ip: '{{ sap_maxdb_use_public_ip | default(false) }}'
-        sap_maxdb_boot_disk_size: '{{ sap_maxdb_boot_disk_size | default(30) }}'
-        sap_maxdb_boot_disk_type: '{{ sap_maxdb_boot_disk_type | default("pd-ssd") }}'
-        sap_maxdb_autodelete_boot_disk: '{{ sap_maxdb_autodelete_boot_disk | default(true) }}'
-        sap_maxdb_usrsap_disk_size: '{{ sap_maxdb_usrsap_disk_size }}'
-        sap_maxdb_sapdb_disk_size: '{{ sap_maxdb_sapdb_disk_size }}'
-        sap_maxdb_maxdbbackup_disk_size: '{{ sap_maxdb_maxdbbackup_disk_size }}'
-        sap_maxdb_usrsap_disk_type: '{{ sap_maxdb_usrsap_disk_type }}'
-        sap_maxdb_sapdb_disk_type: '{{ sap_maxdb_sapdb_disk_type }}'
-        sap_maxdb_maxdbbackup_disk_type: '{{ sap_maxdb_maxdbbackup_disk_type }}'
-        sap_maxdb_service_account_email: '{{ sap_maxdb_service_account_email | default("{}@{}.iam.gserviceaccount.com".format(sap_hana_service_account_name | default("sap-common-sa"), sap_project_id)) }}'
-        sap_maxdb_network_tags: '{{ sap_maxdb_network_tags | default([sap_maxdb_network_tags | default("sap-allow-all")]) }}'
-        sap_maxdb_pd_kms_key: '{{ sap_maxdb_pd_kms_key | default(None) }}'
-        sap_maxdb_labels: '{{ sap_maxdb_labels }}'
-  # - role: gcp-secrets-manager
-  tags: [maxdb, assertions]
-
 - name: MaxDB Standalone Configure
   hosts: maxdb
   become: yes

@@ -20,3 +20,7 @@ output "inventory" {
     groups = ["maxdb"]
   }]
 }
+
+output "instance_name" {
+  value = google_compute_instance.gcp_maxdb.self_link
+}
