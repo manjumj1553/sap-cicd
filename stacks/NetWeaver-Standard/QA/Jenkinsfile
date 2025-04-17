@@ -1,0 +1,585 @@
+import groovy.json.JsonOutput
+pipeline {
+    agent any
+    
+    environment {
+        // CREDENTIALS
+        GOOGLE_APPLICATION_CREDENTIALS = credentials('gcp-key-new')
+        GIT_REPO_URL = "github.com/haprcr/sap-cicd-devops"
+        GIT_USER_EMAIL = "harshapriyacr@google.com"
+        GIT_USER_NAME = "harshapriyacr"
+
+        //FOLDERS
+        TF_FOLDER = "stacks/NetWeaver-Standard/tf"
+        ANSIBLE_FOLDER = "stacks/NetWeaver-Standard"
+        GIT_FOLDER = "stacks/NetWeaver-Standard/QA"
+
+        ANSIBLE_ROLES_PATH = "${env.WORKSPACE}/ansible/roles"
+        ANSIBLE_PRIVATE_KEY = "/var/lib/jenkins/.ssh/id_rsa"
+        SSH_USER = "harshapriyacr"
+        deployvars_filename = "deploy-vars.yml"
+
+        BUCKET_ID_FILES = "webdispatcher_standalone_cicd"
+        TERRAFORM_BUCKET_ID = "bucket-cicd-jenkins"
+        TERRAFORM_PREFIX_ID = "sajenkinsApr15"
+        FOLDER_NAME = "SAR_NetweaverStandard_20250327095252"
+
+        PROJECT_ID = "sap-iac-test"
+        SUBNETWORK_PROJECT = "sap-iac-test"
+        SOURCE_IMAGE_NAME = "rhel-9-2-sap-v20241210"
+        SOURCE_IMAGE_PROJECT = "rhel-sap-cloud"
+        GCE_SSH_USER = "harshapriyacr"
+        GCE_SSH_PUB_KEY_FILE = "~/.ssh/id_rsa.pub"
+        SAP_HANA_BOOT_DISK_SIZE = "100"
+        SAP_HANA_BOOT_DISK_TYPE = "pd-ssd"
+        SAP_HANA_AUTODELETE_BOOT_DISK = 'true'
+        SAP_HANA_ADDITIONAL_DISK_TYPE = "pd-ssd"
+        SAP_HANA_CREATE_BACKUP_VOLUME = 'true'
+        SAP_HANA_SERVICE_ACCOUNT_EMAIL = "811811474621-compute@developer.gserviceaccount.com"
+        SAP_HANA_NETWORK_TAGS = "sap-allow-all"
+        SAP_HANA_PD_KMS_KEY = "projects/sap-iac-test/locations/global/keyRings/paypal-ring/cryptoKeys/paypal-key"
+        SAP_HANA_INSTALL_FILES_BUCKET = "sap-deployment-media"
+        SAP_HANA_DATA_DISK_SIZE = "599"
+        SAP_HANA_LOG_DISK_SIZE = "104"
+        SAP_HANA_SHARED_DISK_SIZE = "208"
+        SAP_HANA_USR_DISK_SIZE = "100"
+        SAP_HANA_SWAP_DISK_SIZE = "2"
+        SAP_HANA_DATA_DISK_TYPE = "pd-ssd"
+        SAP_HANA_LOG_DISK_TYPE = "pd-ssd"
+        SAP_HANA_SHARED_DISK_TYPE = "pd-ssd"
+        SAP_HANA_USR_DISK_TYPE = "pd-ssd"
+        SAP_HANA_SWAP_DISK_TYPE = "pd-ssd"
+        SAP_HANA_BACKINT_INSTALL = 'true'
+        SAP_HANA_BACKINT_BUCKET_NAME = ''
+        SAP_HOST_FQDN = "paypal.com"
+        SAP_NW_GSM_SECRET_ID = "hana_default_pass"
+        SAP_HANA_PASSWORD = 'Paypal12345'
+
+        SAP_NW_INSTALL_FILES_BUCKET = "sap-deployment-media"
+        SAP_NW_AUTODELETE_BOOT_DISK = 'true'
+        SAP_NW_BOOT_DISK_SIZE = "100"
+        SAP_NW_BOOT_DISK_TYPE = "pd-ssd"
+        SAP_NW_ADDITIONAL_DISK_TYPE = "pd-ssd"
+        SAP_NW_NETWORK_TAGS = "sap-allow-all"
+        SAP_NW_SERVICE_ACCOUNT_EMAIL = "811811474621-compute@developer.gserviceaccount.com"
+        SAP_NW_SWAP_DISK_SIZE = "50"
+        SAP_NW_USRSAP_DISK_SIZE = "100"
+        SAP_NW_PD_KMS_KEY = "projects/sap-iac-test/locations/global/keyRings/paypal-ring/cryptoKeys/paypal-key"
+        SAP_NW_USE_PUBLIC_IP = 'false'
+        SAP_NW_PRODUCT_AND_VERSION = "BW4HANA/2023"
+        SAP_SAPINST_NW = 'true'
+        SAP_BW4HANA_STACK = 'true'
+        SAP_NW_PASSWORD = 'Paypal12345'
+    }
+
+    parameters {
+      string(name: 'sap_hana_instance_name', defaultValue: 'nwhana1', description: "SAP HANA Instance name")
+      string(name: 'zone', defaultValue: 'us-central1-a', description: "SAP Deployment Zone")
+      string(name: 'sap_hana_instance_ip', defaultValue: '10.5.0.111', description: "Private IP Address of HANA Instance")
+      choice(name: 'sap_hana_instance_type', choices: ['n1-highmem-32'], description: 'Machine type')   
+      string(name: 'subnetwork_hana', defaultValue: 'db-central', description: "Subnetwork for HANA instance") 
+      string(name: 'sap_hana_labels', defaultValue: '{ app = "hana" }', description: "Instance labels (key-value pairs) for HANA instance") 
+      string(name: 'sap_hana_addon_disk_name', defaultValue: 'lssshared', description: "SAP  HANAadditional disk name")
+      string(name: 'sap_hana_addon_disk_size_gb', defaultValue: '50', description: "SAP HANA additional disk size in GB")
+      string(name: 'sap_hana_addon_disk_type', defaultValue: 'pd-ssd', description: "SAP HANA additional disk type")
+      string(name: 'sap_nw_instance_name', defaultValue: 'nwstd1', description: "SAP Netweaver Instance Name")
+      string(name: 'sap_nw_instance_ip', defaultValue: '10.5.0.122', description: "Private IP Address of Netweaver Instance")
+      choice(name: 'sap_nw_instance_type', choices: ['n1-standard-8'], description: 'Machine type') 
+      string(name: 'subnetwork_nw', defaultValue: 'db-central', description: "Subnetwork for Netweaver Instance")
+      string(name: 'sap_nw_labels', defaultValue: '{ app = "nw" }', description: "Instance labels (key-value pairs) for Netweaver Instance") 
+      string(name: 'sap_hana_instance_number', defaultValue: '00', description: "SAP HANA Instance number")
+      string(name: 'sap_nw_ascs_instance_number', defaultValue: '01', description: "SAP NW ASCS Instance number")
+      string(name: 'sap_nw_pas_instance_number', defaultValue: '00', description: "SAP NW PAS Instance number")
+      string(name: 'sapmnt_nfs_server_path', defaultValue: '10.167.224.4:/paypalvol1/CID', description: "SAPMNT NFS path") 
+      string(name: 'sap_hana_sid', defaultValue: 'NW1', description: "SAP HANA SID")   
+      string(name: 'sap_nw_sid', defaultValue: 'NW1', description: "SAP Netweaver SID") 
+      string(name: 'sap_hana_system_uid', defaultValue: '1030', description: "SAP HANA System UID") 
+    }
+
+    stages {
+        stage('Prepare TF variable file') {
+            steps {
+                script {
+                    def paramsMap = [:] 
+
+                    params.each { key, value ->
+                        switch (key) {
+                            case 'sap_hana_network_tags':
+                                try {
+                                    paramsMap[key] = readJSON(text: value)
+                                } catch (Exception e) {
+                                    error("Invalid JSON format for sap_hana_network_tags: ${value}")
+                                }
+                                break
+                            
+                            case 'sap_nw_network_tags':
+                                try {
+                                    paramsMap[key] = readJSON(text: value)
+                                } catch (Exception e) {
+                                    error("Invalid JSON format for sap_nw_network_tags: ${value}")
+                                }
+                                break
+
+                            case 'sap_hana_labels':
+                                try {
+                                    paramsMap[key] = readJSON(text: value)
+                                } catch (Exception e) {
+                                    error("Invalid JSON format for sap_hana_labels: ${value}")
+                                }
+                                break
+                            
+                            case 'sap_nw_labels':
+                                try {
+                                    paramsMap[key] = readJSON(text: value)
+                                } catch (Exception e) {
+                                    error("Invalid JSON format for sap_nw_labels: ${value}")
+                                }
+                                break
+
+                            case ['sap_hana_addon_disk_name', 'sap_hana_addon_disk_size_gb', 'sap_hana_addon_disk_type']:
+                                if (!paramsMap.containsKey('sap_hana_addon_disks')) {
+                                    paramsMap['sap_hana_addon_disks'] = [:]
+                                }
+                                paramsMap['sap_hana_addon_disks']['name'] = [params['sap_hana_addon_disk_name']]
+                                paramsMap['sap_hana_addon_disks']['disk_size_gb'] = [params['sap_hana_addon_disk_size_gb'].toInteger()]
+                                paramsMap['sap_hana_addon_disks']['disk_type'] = [params['sap_hana_addon_disk_type']]
+                                break
+
+                            default:
+                                paramsMap[key] = value
+                        }
+                    }
+
+                    // Add environment variables
+                    paramsMap['project_id'] = env.PROJECT_ID 
+                    paramsMap['subnetwork_project'] = env.SUBNETWORK_PROJECT
+                    paramsMap['source_image_name'] = env.SOURCE_IMAGE_NAME
+                    paramsMap['source_image_project'] = env.SOURCE_IMAGE_PROJECT
+                    paramsMap['gce_ssh_pub_key_file'] = env.GCE_SSH_PUB_KEY_FILE
+                    paramsMap['gce_ssh_user'] = env.GCE_SSH_USER
+                    paramsMap['sap_hana_service_account_email'] = env.SAP_HANA_SERVICE_ACCOUNT_EMAIL 
+                    paramsMap['sap_hana_boot_disk_size'] = env.SAP_HANA_BOOT_DISK_SIZE
+                    paramsMap['sap_hana_boot_disk_type'] = env.SAP_HANA_BOOT_DISK_TYPE
+                    paramsMap['sap_hana_autodelete_boot_disk'] = env.SAP_HANA_AUTODELETE_BOOT_DISK ? env.SAP_HANA_AUTODELETE_BOOT_DISK : true
+                    paramsMap['sap_hana_network_tags'] = [env.SAP_HANA_NETWORK_TAGS]
+                    paramsMap['sap_hana_pd_kms_key'] = env.SAP_HANA_PD_KMS_KEY
+                    paramsMap['sap_hana_create_backup_volume'] = env.SAP_HANA_CREATE_BACKUP_VOLUME
+                    paramsMap['sap_hana_install_files_bucket'] = env.SAP_HANA_INSTALL_FILES_BUCKET
+                    paramsMap['hana_script_path'] = ""
+                    paramsMap['sap_hana_log_size'] = env.SAP_HANA_LOG_DISK_SIZE
+                    paramsMap['sap_hana_data_size'] = env.SAP_HANA_DATA_DISK_SIZE
+                    paramsMap['sap_hana_shared_size'] = env.SAP_HANA_SHARED_DISK_SIZE
+                    paramsMap['sap_hana_usr_size'] = env.SAP_HANA_USR_DISK_SIZE
+                    paramsMap['sap_hana_swap_size'] = env.SAP_HANA_SWAP_DISK_SIZE
+                    paramsMap['sap_hana_log_type'] = env.SAP_HANA_LOG_DISK_TYPE
+                    paramsMap['sap_hana_data_type'] = env.SAP_HANA_DATA_DISK_TYPE
+                    paramsMap['sap_hana_shared_type'] = env.SAP_HANA_SHARED_DISK_TYPE
+                    paramsMap['sap_hana_usr_type'] = env.SAP_HANA_USR_DISK_TYPE
+                    paramsMap['sap_hana_swap_type'] = env.SAP_HANA_SWAP_DISK_TYPE
+                    paramsMap['sap_hana_additional_disk_type'] = env.SAP_HANA_ADDITIONAL_DISK_TYPE
+
+                    paramsMap['sap_nw_boot_disk_size'] = env.SAP_NW_BOOT_DISK_SIZE
+                    paramsMap['sap_nw_boot_disk_type'] = env.SAP_NW_BOOT_DISK_TYPE
+                    paramsMap['sap_nw_autodelete_boot_disk'] = env.SAP_NW_AUTODELETE_BOOT_DISK ? env.SAP_NW_AUTODELETE_BOOT_DISK : true
+                    paramsMap['sap_nw_install_files_bucket'] = env.SAP_NW_INSTALL_FILES_BUCKET
+                    paramsMap['sap_nw_use_public_ip'] = env.SAP_NW_USE_PUBLIC_IP
+                    paramsMap['sap_nw_usrsap_disk_size'] = env.SAP_NW_USRSAP_DISK_SIZE
+                    paramsMap['sap_nw_swap_disk_size'] = env.SAP_NW_SWAP_DISK_SIZE
+                    paramsMap['sap_nw_service_account_email'] = env.SAP_NW_SERVICE_ACCOUNT_EMAIL 
+                    paramsMap['sap_nw_network_tags'] = [env.SAP_NW_NETWORK_TAGS]
+                    paramsMap['sap_nw_pd_kms_key'] = env.SAP_NW_PD_KMS_KEY
+                    paramsMap['sap_nw_additional_disk_type'] = env.SAP_NW_ADDITIONAL_DISK_TYPE
+                    paramsMap['nw_script_path'] = ''
+
+                    writeFile file: "${env.TF_FOLDER}/terraform.tfvars.json", text: JsonOutput.toJson(paramsMap)
+                }
+            }
+        }
+
+        stage('Terraform Plan and Approve') {
+            steps {
+                script {
+                    def bucketId = "${env.TERRAFORM_BUCKET_ID}"
+                    def prefixId = "${env.TERRAFORM_PREFIX_ID}"
+
+                    if (!bucketId || !prefixId) {
+                        error "Bucket and prefix ID not found for ${TF_FOLDER}"
+                    }
+
+                    echo "Executing Terraform init and plan in ${TF_FOLDER} with backend bucket=${bucketId}, prefix=${prefixId}"
+
+                    withCredentials([file(credentialsId: 'gcp-key-new', variable: 'GOOGLE_APPLICATION_CREDENTIALS')]) {
+                    dir("${TF_FOLDER}") {
+                                        sh "cat terraform.tfvars.json"
+
+                                        sh """
+                                            terraform init \\
+                                                -backend-config="bucket=${bucketId}" \\
+                                                -backend-config="prefix=${prefixId}" \\
+                                                -reconfigure
+                                        """
+
+                                        // Capture Terraform plan output into a file
+                                        sh "terraform plan -var-file=terraform.tfvars.json -compact-warnings | tee terraform-plan.log"
+                                        
+                        }
+                    
+                    def approverEmail = 'santoshisarvagnya@gmail.com'
+                    def subject = "Approval Required: Terraform Execution"
+                    def logFilePath = "${TF_FOLDER}/terraform-plan.log"
+
+                    // Read Terraform Plan Output and truncate if too long
+                    def planOutput = readFile(logFilePath)
+
+                    def body = """
+                        <p>Terraform execution is requested. Please review and approve or reject.</p>
+                        
+                        <p><b>Job:</b> ${env.JOB_NAME}<br>
+                        <b>Build Number:</b> ${env.BUILD_NUMBER}<br>
+                        <b>URL:</b> <a href="${env.BUILD_URL}">${env.BUILD_URL}</a></p>
+
+                        <p><b>Terraform Plan Output (truncated):</b></p>
+                        <pre>${planOutput}</pre>
+
+                        <p><b>Approval Options:</b></p>
+                        <ul>
+                            <li><a href="${env.BUILD_URL}/input">✅ Approve Job</a></li>
+                            <li><a href="${env.BUILD_URL}/abort">❌ Reject Job</a></li>
+                        </ul>
+                    """
+
+                    mail(
+                        to: approverEmail,
+                        subject: subject,
+                        body: body,
+                        mimeType: 'text/html'
+                    )
+                    }
+
+
+                    input message: "Do you want to proceed with Terraform Configuration Deployment?", ok: "Proceed"
+
+                    withCredentials([file(credentialsId: 'gcp-key-new', variable: 'GOOGLE_APPLICATION_CREDENTIALS')]) {
+                        dir("${TF_FOLDER}") {
+                            sh "terraform apply -auto-approve -var-file=\"terraform.tfvars.json\""
+                        }
+                    }
+
+                    sh """
+                        echo "Fetching Terraform state file from GCS..."
+                        gsutil cat gs://${env.TERRAFORM_BUCKET_ID}/${env.TERRAFORM_PREFIX_ID}/default.tfstate
+                    """
+                }
+            }
+        }
+
+
+        stage('Prepare Host Inventory') {
+            steps {
+                script {
+                    dir("${TF_FOLDER}") {
+                            echo "Extracting Terraform output for ${TF_FOLDER}"
+
+                            // Get Terraform JSON output
+                            def terraformOutput = sh(script: 'terraform output -json', returnStdout: true).trim()
+
+                            // Debug raw output
+                            echo "Raw Terraform Output: ${terraformOutput}"
+
+                            def jsonOutput = readJSON(text: terraformOutput)
+
+                            // Debug parsed output
+                            echo "Parsed JSON Output: ${jsonOutput}"
+
+                            // Extract inventory
+                            def inventoryList = jsonOutput.inventory?.value ?: []
+                            def hanaInstanceName = jsonOutput.hana_instance_name?.value ?: ["unknown-hana-instance"]
+                            def nwInstanceName = jsonOutput.nw_instance_name?.value ?: ["unknown-nw-instance"]
+
+                            if (inventoryList.isEmpty() || hanaInstanceName.isEmpty() || nwInstanceName.isEmpty()) {
+                                error "Error: 'inventory' or 'hana_instance_name' or 'nw_instance_name' is empty"
+                            }
+
+                            // Build YAML content
+                            def yamlContent = "all:\n  children:\n"
+
+                            // Group hosts by group
+                            def groupedHosts = inventoryList.groupBy { it.groups[0] }
+
+                            groupedHosts.each { groupName, entries ->
+                                yamlContent += "    ${groupName}:\n      hosts:\n"
+                                entries.each { entry ->
+                                    def host = entry.host
+                                    yamlContent += "        ${host}:\n"
+                                    if (groupName == "hana") {
+                                        yamlContent += "          hana_instance_name: ${hanaInstanceName}\n"
+                                    } else if (groupName == "nw") {
+                                        yamlContent += "          nw_instance_name: ${nwInstanceName}\n"
+                                    }
+                                }
+                            }
+
+                            def yamlFilePath = "${env.WORKSPACE}/${env.ANSIBLE_FOLDER}/inventory.yml"
+                            writeFile file: yamlFilePath, text: yamlContent
+
+                            echo "Inventory YAML file created at ${yamlFilePath}"
+                    }
+                }
+            }
+        }
+
+        stage('Prepare Ansible Input Vars File') {
+            steps {
+                script {
+
+                    input message: "Do you want to proceed with Ansible Execution?", ok: "Proceed"
+
+                    def yamlContent = """
+                        sap_zone: ${params.zone}
+                        sap_project_id: ${env.PROJECT_ID }
+                        sap_ssh_user: ${env.GCE_SSH_USER}
+                        sap_host_fqdn: ${env.SAP_HOST_FQDN}
+                        sap_hana_backint_install: ${env.SAP_HANA_BACKINT_INSTALL}
+                        sap_hana_backint_bucket_name: ${env.SAP_HANA_BACKINT_BUCKET_NAME}
+                        sap_hana_install_files_bucket:  ${env.SAP_HANA_INSTALL_FILES_BUCKET}
+                        sap_hana_shared_size: ${env.SAP_HANA_SHARED_DISK_SIZE}
+                        sap_hana_data_size: ${env.SAP_HANA_DATA_DISK_SIZE}
+                        sap_hana_log_size: ${env.SAP_HANA_LOG_DISK_SIZE}
+                        sap_hana_usr_size: ${env.SAP_HANA_USR_DISK_SIZE}
+                        sap_hana_virtual_host: ${params.sap_hana_instance_name}
+                        sap_nw_ascs_virtual_host: ${params.sap_nw_instance_name}
+                        sap_nw_pas_virtual_host: ${params.sap_nw_instance_name}
+                        sap_hana_sid: ${params.sap_hana_sid}
+                        sap_nw_sid:  ${params.sap_nw_sid}
+                        sap_hana_password: ${env.SAP_HANA_PASSWORD}
+                        sap_nw_password: ${env.SAP_NW_PASSWORD}
+                        sapmnt_nfs_server_path: ${params.sapmnt_nfs_server_path}
+                        sap_nw_install_files_bucket: ${env.SAP_NW_INSTALL_FILES_BUCKET}
+                        sap_nw_product_and_version: ${env.SAP_NW_PRODUCT_AND_VERSION} 
+                        sap_sapinst_nw: ${env.SAP_SAPINST_NW}
+                        sap_bw4hana_stack: ${env.SAP_BW4HANA_STACK}
+                        sap_hana_instance_number: "${params.sap_hana_instance_number}"
+                        sap_nw_ascs_instance_number: "${params.sap_nw_ascs_instance_number}"
+                        sap_nw_pas_instance_number: "${params.sap_nw_pas_instance_number}"
+                        sap_hana_system_uid: "${params.sap_hana_system_uid}"
+
+                    """.stripIndent()
+                    
+                    sh "mkdir -p ${env.ANSIBLE_FOLDER}/vars"
+
+                    writeFile file: "${env.ANSIBLE_FOLDER}/vars/deploy-vars.yml", text: yamlContent
+                }
+            }
+        }
+
+        stage('Wait for SSH Connection to All Hosts') {
+    steps {
+        script {
+            def connectedHosts = [] as Set  // Use a Set to avoid duplicates
+            def retryCount = 0
+            def maxRetries = 5  // Maximum retry attempts
+            def retryDelay = 40 // Delay between retries (seconds)
+
+            // Read the inventory.yml file as YAML
+            def inventoryData = readYaml file: "${ANSIBLE_FOLDER}/inventory.yml"
+            def inventoryHosts = []
+
+            // Navigate through YAML to extract host IPs
+            if (inventoryData?.all?.children?.nw?.hosts) {
+                inventoryHosts = inventoryData.all.children.nw.hosts.keySet().toList()
+            } else {
+                error "No hosts found in inventory.yml!"
+            }
+
+            echo "Hosts from inventory: ${inventoryHosts}"
+
+            def sshUser = env.GCE_SSH_USER
+            echo "Using SSH User: ${sshUser}"
+
+            while (connectedHosts.size() < inventoryHosts.size() && retryCount < maxRetries) {
+                def remainingHosts = inventoryHosts - connectedHosts  // Hosts that still need checking
+
+                for (host in remainingHosts) {
+                    echo "Attempting SSH connection to ${sshUser}@${host}, try #${retryCount + 1}"
+                    def result = sh(script: "ssh -o StrictHostKeyChecking=no -o ConnectTimeout=10 ${sshUser}@${host} 'exit'", returnStatus: true)
+
+                    if (result == 0) {
+                        echo "SSH connection successful for ${host}"
+                        connectedHosts.add(host)
+                    } else {
+                        echo "SSH connection failed for ${host}. Moving to the next host..."
+                    }
+                }
+
+                retryCount++
+                if (connectedHosts.size() < inventoryHosts.size() && retryCount < maxRetries) {
+                    sleep(retryDelay)
+                }
+            }
+
+            // Fail if any hosts remain unreachable
+            if (connectedHosts.size() < inventoryHosts.size()) {
+                error "Failed to connect to some hosts after ${maxRetries} attempts: ${(inventoryHosts - connectedHosts)}"
+            } else {
+                echo "All hosts are reachable. Proceeding with Ansible playbook execution."
+            }
+        }
+    }
+}
+        
+        stage("Execute Ansible"){
+            steps {
+                script {
+                    // Send mail for ansible execution
+                    def teamEmail = 'santoshisarvagnya@gmail.com'
+                    def subject_exe = "Initiation of NetWeaver-Standard deployment in QA environment"
+
+                    def body_exe = """
+                        <html>
+                        <body>
+                            <p>Dear Team,</p>
+                            <p>The deployment of <strong>NetWeaver-Standard</strong> system in the <strong>QA</strong> environment has been initiated from the Jenkins UI. Please find the build information below:</p>
+
+                            <ul>
+                                <li><strong>Job:</strong> ${env.JOB_NAME}</li>
+                                <li><strong>Build Number:</strong> ${env.BUILD_NUMBER}</li>
+                                <li><strong>Build URL:</strong> <a href="${env.BUILD_URL}">${env.BUILD_URL}</a></li>
+                            </ul>
+
+                            <p>Regards,</p>
+                        </body>
+                        </html>
+                    """
+
+                    mail(
+                        to: teamEmail,
+                        subject: subject_exe,
+                        body: body_exe,
+                        mimeType: 'text/html'
+                    )
+                    dir("${ANSIBLE_FOLDER}") {
+
+                            ansiblePlaybook(
+                                disableHostKeyChecking: true,
+                                installation: 'Ansible',
+                                inventory: "inventory.yml",
+                                playbook: "playbook.yml",
+                                extras: "-e @vars/${deployvars_filename}",
+                                extraVars: [
+                                    "ansible_ssh_private_key_file": ANSIBLE_PRIVATE_KEY,
+                                    "ansible_user": SSH_USER
+                                ]
+                            )
+                    }
+                    
+                    def yamlContent = """
+                        sap_zone: ${params.zone}
+                        sap_project_id: ${env.PROJECT_ID }
+                        sap_ssh_user: ${env.GCE_SSH_USER}
+                        sap_host_fqdn: ${env.SAP_HOST_FQDN}
+                        sap_hana_backint_install: ${env.SAP_HANA_BACKINT_INSTALL}
+                        sap_hana_backint_bucket_name: ${env.SAP_HANA_BACKINT_BUCKET_NAME}
+                        sap_hana_install_files_bucket:  ${env.SAP_HANA_INSTALL_FILES_BUCKET}
+                        sap_hana_shared_size: ${env.SAP_HANA_SHARED_DISK_SIZE}
+                        sap_hana_data_size: ${env.SAP_HANA_DATA_DISK_SIZE}
+                        sap_hana_log_size: ${env.SAP_HANA_LOG_DISK_SIZE}
+                        sap_hana_usr_size: ${env.SAP_HANA_USR_DISK_SIZE}
+                        sap_hana_virtual_host: ${params.sap_hana_instance_name}
+                        sap_nw_ascs_virtual_host: ${params.sap_nw_instance_name}
+                        sap_nw_pas_virtual_host: ${params.sap_nw_instance_name}
+                        sap_hana_sid: ${params.sap_hana_sid}
+                        sap_nw_sid:  ${params.sap_nw_sid}
+                        sapmnt_nfs_server_path: ${params.sapmnt_nfs_server_path}
+                        sap_nw_install_files_bucket: ${env.SAP_NW_INSTALL_FILES_BUCKET}
+                        sap_nw_product_and_version: ${env.SAP_NW_PRODUCT_AND_VERSION} 
+                        sap_sapinst_nw: ${env.SAP_SAPINST_NW}
+                        sap_bw4hana_stack: ${env.SAP_BW4HANA_STACK}
+                        sap_hana_instance_number: "${params.sap_hana_instance_number}"
+                        sap_nw_ascs_instance_number: "${params.sap_nw_ascs_instance_number}"
+                        sap_nw_pas_instance_number: "${params.sap_nw_pas_instance_number}"
+                        sap_hana_system_uid: "${params.sap_hana_system_uid}"
+                    """.stripIndent()
+
+                        writeFile file: "${env.ANSIBLE_FOLDER}/vars/deploy-vars.yml", text: yamlContent
+                    // Send mail for successful deployment
+                    def subject_cmp = "NetWeaver-Standard Deployment Successfully Completed in QA environment"
+
+                    def body_cmp = """
+                        <html>
+                        <body>
+                            <p>Dear Team,</p>
+
+                            <p>The deployment of <strong>NetWeaver-Standard</strong> system in the <strong>QA</strong> environment has been successfully completed. Below are the details of the newly created instances:</p>
+
+                            <table cellspacing="0" cellpadding="5" border="1" style="border-collapse: collapse;">
+                                <tr><th align="left">SAP HANA Instance Name</th><td>${params.sap_hana_instance_name}</td></tr>
+                                <tr><th align="left">SAP HANA Instance IP</th><td>${params.sap_hana_instance_ip}</td></tr>
+                                <tr><th align="left">SAP NW Instance Name</th><td>${params.sap_nw_instance_name}</td></tr>
+                                <tr><th align="left">SAP NW Instance IP</th><td>${params.sap_nw_instance_ip}</td></tr>
+                                <tr><th align="left">Zone</th><td>${params.zone}</td></tr>
+                            </table>
+
+                            <p><strong>Build Information:</strong></p>
+                            <ul>
+                                <li><strong>Job:</strong> ${env.JOB_NAME}</li>
+                                <li><strong>Build Number:</strong> ${env.BUILD_NUMBER}</li>
+                                <li><strong>Build URL:</strong> <a href="${env.BUILD_URL}">${env.BUILD_URL}</a></li>
+                            </ul>
+
+                            <p>Best regards</p>
+                        </body>
+                        </html>
+                    """
+
+                    mail(
+                        to: teamEmail,
+                        subject: subject_cmp,
+                        body: body_cmp,
+                        mimeType: 'text/html'
+                    )
+                }
+            }
+        }
+
+        stage('Add the files to Git Repository') {
+            steps {
+                script {
+                    withCredentials([string(credentialsId: 'git-key', variable: 'GIT_SECRET')]) {
+                        def timestamp = new Date().format("yyyyMMddHHmmss")
+                        def git_folder_name = "${params.sap_nw_sid}_${timestamp}"
+                        def target_folder = "${env.GIT_FOLDER}/${git_folder_name}"
+                        def tfvarsFile = "${env.TF_FOLDER}/terraform.tfvars.json"
+                        def inventoryFile = "${env.ANSIBLE_FOLDER}/inventory.yml"
+                        def deployvarsFile = "${env.ANSIBLE_FOLDER}/vars/deploy-vars.yml"
+
+                        sh """
+                            mkdir -p ${target_folder}
+                            cp ${tfvarsFile} ${target_folder}/terraform.tfvars.json
+                            cp ${inventoryFile} ${target_folder}/inventory.yml
+                            cp ${deployvarsFile} ${target_folder}/deploy-vars.yml
+
+                            git config user.name "${GIT_USER_NAME}"
+                            git config user.email "${GIT_USER_EMAIL}"
+                            
+                            git pull https://${GIT_USER_NAME}:${GIT_SECRET}@${GIT_REPO_URL} HEAD:main
+                            git add ${target_folder}
+                            git commit -m "Add deployment files for ${git_folder_name}" || echo 'No changes to commit'
+                            git push https://${GIT_USER_NAME}:${GIT_SECRET}@${GIT_REPO_URL} HEAD:main
+                        """
+                    }
+                }
+            }
+        }
+    }
+
+
+        post {
+                // Clean after build
+                always {
+                    cleanWs(cleanWhenNotBuilt: false,
+                            deleteDirs: true,
+                            disableDeferredWipeout: true,
+                            notFailBuild: true)
+                }
+        }
+}
