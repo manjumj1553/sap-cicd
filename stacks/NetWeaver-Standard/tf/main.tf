@@ -30,17 +30,16 @@ module "gcp_hana" {
   source_image_project  = var.source_image_project
   boot_disk_size        = var.sap_hana_boot_disk_size
   boot_disk_type        = var.sap_hana_boot_disk_type
-  additional_disk_type  = var.sap_hana_additional_disk_type
   autodelete_disk       = var.sap_hana_autodelete_boot_disk
   network_tags          = var.sap_hana_network_tags
   pd_kms_key            = var.sap_hana_pd_kms_key
   create_backup_volume  = var.sap_hana_create_backup_volume
   startup_script        = var.hana_script_path
-  hana_log_size         = var.sap_hana_log_size
+  log_disk_size         = var.sap_hana_log_size
   hana_data_size        = var.sap_hana_data_size
   hana_shared_size      = var.sap_hana_shared_size
   hana_usr_size         = var.sap_hana_usr_size
-  hana_swap_size        = var.sap_hana_swap_size
+  swap_disk_size        = var.sap_hana_swap_size
   labels                = var.sap_hana_labels
   hana_addon_disks      = var.sap_hana_addon_disks
 }
