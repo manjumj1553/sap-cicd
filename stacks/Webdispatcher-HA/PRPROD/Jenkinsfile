@@ -1,0 +1,641 @@
+import groovy.json.JsonOutput
+pipeline {
+    agent any
+    
+    environment {
+        // CREDENTIALS
+        GOOGLE_APPLICATION_CREDENTIALS = credentials('gcp-key-new')
+        GIT_REPO_URL = "github.com/haprcr/sap-cicd-devops"
+        GIT_USER_EMAIL = "harshapriyacr@google.com"
+        GIT_USER_NAME = "harshapriyacr"
+
+        // FOLDERS
+        TF_FOLDER = "stacks/Webdispatcher-HA/tf_webdisp_ha/tf"
+        TF_FOLDER_LB = "stacks/Webdispatcher-HA/tf_webdisp_ha/tf-loadbalancer"
+        ANSIBLE_FOLDER = "stacks/Webdispatcher-HA"
+        GIT_FOLDER = "stacks/Webdispatcher-HA/PRPROD"
+        deployvars_filename = "deploy-vars.yml"
+
+        ANSIBLE_ROLES_PATH = "${env.WORKSPACE}/ansible/roles"
+        ANSIBLE_PRIVATE_KEY = "/var/lib/jenkins/.ssh/id_rsa"
+        SSH_USER = "harshapriyacr"
+
+        TERRAFORM_BUCKET_ID = "bucket-cicd-jenkins"
+        TERRAFORM_PREFIX_ID = "jenkins1Apr14"
+
+        TERRAFORM_LB_BUCKET_ID = "bucket-cicd-jenkins"
+        TERRAFORM_LB_PREFIX_ID = "jenkinslb1Apr14"
+    
+        // // PRIMARY
+        sap_nw_primary_instance_group_name = 'paypal-sap-webdisp-instgrp-nw-001'
+
+
+        // // SECONDARY
+        sap_nw_secondary_instance_group_name = 'paypal-sap-webdisp-instgrp-nw-002'
+
+        product_and_version = 'WebDispatcher/753'
+        // sap_project_id
+        PROJECT_ID = "sap-iac-test"
+        // sap_subnetwork_project_id
+        SUBNETWORK_PROJECT = "sap-iac-test"
+        // sap_source_image_name
+        SOURCE_IMAGE_NAME = "rhel-9-2-sap-v20241210"
+        SOURCE_IMAGE_PROJECT = "rhel-sap-cloud"
+        GCE_SSH_USER = "harshapriyacr"
+        GCE_SSH_PUB_KEY_FILE = "~/.ssh/id_rsa.pub"
+        SAP_NW_BOOT_DISK_SIZE = "50"
+        SAP_NW_BOOT_DISK_TYPE = "pd-ssd"
+        SAP_NW_AUTODELETE_BOOT_DISK = 'true'
+        SAP_NW_USRSAP_DISK_SIZE = "10"
+        SAP_NW_USRSAP_DISK_TYPE = "pd-ssd"
+        SAP_NW_ADDITIONAL_DISK_TYPE = "pd-ssd"
+        SAP_NW_SERVICE_ACCOUNT_EMAIL = "811811474621-compute@developer.gserviceaccount.com"
+        SAP_NW_NETWORK_TAGS = "sap-allow-all"
+        SAP_NW_PD_KMS_KEY = "projects/sap-iac-test/locations/global/keyRings/paypal-ring/cryptoKeys/paypal-key"
+        SAP_HOST_FQDN = "paypal.com"
+        SAP_NW_INSTALL_FILES_BUCKET = "sap-deployment-media"
+        SAP_NW_GSM_SECRET_ID = "hana_default_pass"
+        SAP_NW_BACKINT_INSTALL = 'true'
+        SAP_SAPINST_NW = 'true'
+        SAP_NW_PASSWORD = 'Paypal12345'
+        sapmnt_primary_nfs_server_path = '10.167.224.4:/paypalvol1/WD1'
+        sapmnt_secondary_nfs_server_path = '10.167.224.4:/paypalvol1/WD2'
+        sap_lb_tf_version = '0.14.7'
+        lb_env = 'PRPROD'
+        // glb_address_1 = "10.5.0.46"
+        zone_a = "us-central1-a"
+        web_port_name = "paypal-sap-webdisp-hlthch-001"
+    }
+
+    parameters {
+        // PRIMARY
+      string(name: 'sap_nw_primary_instance_name', defaultValue: 'webdispha3p', description: "Compute Engine Primary Instance name")
+      string(name: 'sap_nw_primary_instance_ip', defaultValue: '10.5.0.80', description: "Private IP Address of the Instance") 
+      choice(name: 'sap_nw_instance_type', choices: ['n1-standard-2', 'n1-standard-4'],  
+        description: 'Machine type'
+      ) 
+      string(name: 'sap_nw_primary_sid', defaultValue: 'TVB', description: "SID for Primary")
+      string(name: 'sap_nw_primary_zone', defaultValue: 'us-central1-a', description: "Instance Zone") 
+            string(name: 'sap_nw_primary_labels', defaultValue: '{ env = "PRPROD" }', description: "Instance labels (key-value pairs)") 
+      string(name: 'sap_nw_primary_instance_number', defaultValue: '00', description: "Instance number") 
+            string(name: 'sapmnt_primary_nfs_server_path', defaultValue: '10.167.224.4:/paypalvol1/WD1', description: "Instance number") 
+
+
+        // SECONDARY
+      string(name: 'sap_nw_secondary_instance_name', defaultValue: 'webdispha3s', description: "Compute Engine secondary Instance name")
+      string(name: 'sap_nw_secondary_instance_ip', defaultValue: '10.5.0.82', description: "Private IP Address of the Instance") 
+      choice(name: 'sap_nw_instance_type', choices: ['n1-standard-2', 'n1-standard-4'],  
+        description: 'Machine type'
+      ) 
+      string(name: 'sap_nw_secondary_sid', defaultValue: 'YUB', description: "SID for secondary")
+      string(name: 'sap_nw_secondary_zone', defaultValue: 'us-central1-a', description: "Instance Zone") 
+            string(name: 'sap_nw_secondary_labels', defaultValue: '{ env = "PRPROD" }', description: "Instance labels (key-value pairs)") 
+      string(name: 'sap_nw_secondary_instance_number', defaultValue: '00', description: "Instance number") 
+        string(name: 'sapmnt_secondary_nfs_server_path', defaultValue: '10.167.224.4:/paypalvol1/WD2', description: "Instance number") 
+
+        // PREFIXES
+
+      string(name: 'sap_tf_prefix', defaultValue: 'jenkins6Apr17', description: "prefix-1") 
+      string(name: 'sap_tf_lb_prefix', defaultValue: 'jenkinslb6Apr17', description: "prefix-for-lb") 
+      string(name: 'glb_address_1', defaultValue: '10.5.0.84', description: "glb_address_1") 
+ 
+    //   sap_nw_subnetwork
+      string(name: 'subnetwork', defaultValue: 'db-central', description: "Subnetwork for the instance") 
+      string(name: 'sap_nw_sidadm_uid', defaultValue: '1061', description: "UID for sidadm") 
+      string(name: 'sap_nw_sapadm_uid', defaultValue: '1062', description: "UID for sapadm") 
+      string(name: 'sap_sapsys_gid', defaultValue: '1063', description: "GID for sapsys") 
+    }
+
+    stages {
+
+        stage('Prepare TF variable file for Primary and Secondary Instance') {
+            steps {
+                script {
+                    def paramsMap = [:] 
+                    params.each { key, value ->
+                        if  (key == 'sap_nw_primary_labels') {
+                            def parts = value.split('=')
+                            if (parts.size() == 2) {
+                                paramsMap[key] = [(parts[0].replaceAll('[\\{\\s]+','').trim()): parts[1].replaceAll('[\\}\\s"]+','').trim()]
+                            }
+                            else
+                            {
+                                paramsMap[key] = value
+                            }
+                        } else if (key == 'sap_nw_secondary_labels') {
+                            def parts = value.split('=')
+                            if (parts.size() == 2) {
+                                paramsMap[key] = [(parts[0].replaceAll('[\\{\\s]+','').trim()): parts[1].replaceAll('[\\}\\s"]+','').trim()]
+                            }
+                            else
+                            {
+                                paramsMap[key] = value
+                            }
+                        } 
+                        else if (key == 'subnetwork') {
+                            paramsMap['subnetwork_nw'] = value
+                        }
+                        else if (key == 'sap_nw_primary_sid') {
+
+                        }
+                        else {
+                             paramsMap[key] = value
+                         }
+                    }
+
+                    // Add environment variables
+                    paramsMap['project_id'] = env.PROJECT_ID 
+                    paramsMap['subnetwork_project'] = env.SUBNETWORK_PROJECT
+                    paramsMap['source_image_name'] = env.SOURCE_IMAGE_NAME
+                    paramsMap['source_image_project'] = env.SOURCE_IMAGE_PROJECT
+                    paramsMap['gce_ssh_pub_key_file'] = env.GCE_SSH_PUB_KEY_FILE
+                    paramsMap['gce_ssh_user'] = env.GCE_SSH_USER
+                    paramsMap['sap_nw_boot_disk_size'] = env.SAP_NW_BOOT_DISK_SIZE
+                    paramsMap['sap_nw_boot_disk_type'] = env.SAP_NW_BOOT_DISK_TYPE
+                    paramsMap['sap_nw_additional_disk_type'] = env.SAP_NW_ADDITIONAL_DISK_TYPE
+                    paramsMap['sap_nw_autodelete_boot_disk'] = env.SAP_NW_AUTODELETE_BOOT_DISK ? env.SAP_NW_AUTODELETE_BOOT_DISK : true
+                    paramsMap['sap_nw_usrsap_disk_size'] = env.SAP_NW_USRSAP_DISK_SIZE
+                    paramsMap['sap_nw_usrsap_disk_type'] = env.SAP_NW_USRSAP_DISK_TYPE
+                    paramsMap['sap_nw_service_account_email'] = env.SAP_NW_SERVICE_ACCOUNT_EMAIL 
+                    paramsMap['sap_nw_network_tags'] = [env.SAP_NW_NETWORK_TAGS]
+
+                    paramsMap['sap_nw_pd_kms_key'] = env.SAP_NW_PD_KMS_KEY
+                    paramsMap['sap_host_fqdn'] = env.SAP_HOST_FQDN
+                    paramsMap['sap_nw_install_files_bucket'] = env.SAP_NW_INSTALL_FILES_BUCKET
+                    paramsMap['sap_nw_gsm_secret_id'] = env.SAP_NW_GSM_SECRET_ID
+                    paramsMap['sap_nw_backint_install'] = env.SAP_NW_BACKINT_INSTALL
+                    paramsMap['sap_sapinst_nw'] = env.SAP_SAPINST_NW 
+                    paramsMap['sap_nw_create_instance_group'] = env.sap_nw_create_instance_group ? env.sap_nw_create_instance_group.toBoolean() : false
+                    paramsMap['sap_nw_primary_instance_group_name'] = env.sap_nw_primary_instance_group_name ?: ""
+                    paramsMap['sap_nw_secondary_instance_group_name'] = env.sap_nw_secondary_instance_group_name ?: ""
+                    paramsMap['sap_nw_product_and_version'] = env.product_and_version ? env.product_and_version:""
+                    paramsMap['nw_script_path'] = env.nw_script_path ? env.nw_script_path:""
+                    paramsMap['hana_script_path'] = env.hana_script_path ? env.hana_script_path:""
+
+                    writeFile file: "${env.TF_FOLDER}/terraform.tfvars.json", text: JsonOutput.prettyPrint(JsonOutput.toJson(paramsMap))    
+                }
+            }
+        }
+
+        stage('Terraform Plan and Approve for Primary and Secondary instances') {
+            steps {
+                script {
+                    def bucketId = "${env.TERRAFORM_BUCKET_ID}"
+                    def prefixId = "${params.sap_tf_prefix}"
+
+                    if (!bucketId || !prefixId) {
+                        error "Bucket and prefix ID not found for ${TF_FOLDER}"
+                    }
+
+                    echo "Executing Terraform init and plan in ${TF_FOLDER} with backend bucket=${bucketId}, prefix=${prefixId}"
+
+                    withCredentials([file(credentialsId: 'gcp-key-new', variable: 'GOOGLE_APPLICATION_CREDENTIALS')]) {
+
+                    dir("${TF_FOLDER}") {
+                                        sh "cat terraform.tfvars.json"
+
+                                        sh """
+                                            
+                                            terraform init \\
+                                                -backend-config="bucket=${bucketId}" \\
+                                                -backend-config="prefix=${prefixId}" \\
+                                                -reconfigure
+                                        """
+
+                                        // Capture Terraform plan output into a file
+                                        sh "terraform plan -var-file=terraform.tfvars.json -compact-warnings | tee terraform-plan.log"
+
+                                        
+                        }
+                    def approverEmail = 'priya.harsha724@gmail.com'
+                    def subject = "Approval Required: Terraform Execution"
+                    def logFilePath = "${TF_FOLDER}/terraform-plan.log"
+
+                    // Read Terraform Plan Output and truncate if too long
+                    def planOutput = readFile(logFilePath)
+
+                    def body = """
+                        <p>Terraform execution is requested. Please review and approve or reject.</p>
+                        
+                        <p><b>Job:</b> ${env.JOB_NAME}<br>
+                        <b>Build Number:</b> ${env.BUILD_NUMBER}<br>
+                        <b>URL:</b> <a href="${env.BUILD_URL}">${env.BUILD_URL}</a></p>
+
+                        <p><b>Terraform Plan Output (truncated):</b></p>
+                        <pre>${planOutput}</pre>
+
+                        <p><b>Approval Options:</b></p>
+                        <ul>
+                            <li><a href="${env.BUILD_URL}/input">✅ Approve Job</a></li>
+                            <li><a href="${env.BUILD_URL}/abort">❌ Reject Job</a></li>
+                        </ul>
+                    """
+
+                    mail(
+                        to: approverEmail,
+                        subject: subject,
+                        body: body,
+                        mimeType: 'text/html'
+                    )
+                    }
+
+
+                    input message: "Do you want to proceed with Terraform Configuration Deployment?", ok: "Proceed"
+
+                    withCredentials([file(credentialsId: 'gcp-key-new', variable: 'GOOGLE_APPLICATION_CREDENTIALS')]) {
+                        dir("${TF_FOLDER}") {
+                            sh "terraform apply -auto-approve -var-file=\"terraform.tfvars.json\""
+                        }
+                    }
+
+                    sh """
+                        echo "Fetching Terraform state file from GCS..."
+                        gsutil cat gs://${env.TERRAFORM_BUCKET_ID}/${env.TERRAFORM_PREFIX_ID}/default.tfstate
+                    """
+                    }
+                }
+            }
+
+
+       stage('Prepare TF variable file for Load Balancer') {
+            steps {
+                script {
+                    def paramsMap = [:]
+
+                    params.each { key, value ->
+                        if (key == 'subnetwork') {
+                            paramsMap['subnetwork'] = value
+                        } else if (key == 'glb_address_1') {
+                            paramsMap['glb_address_1'] = value
+                        }
+                    }
+
+                    paramsMap['project_id'] = env.PROJECT_ID
+                    paramsMap['subnetwork_project'] = env.SUBNETWORK_PROJECT
+                    paramsMap['env'] = env.lb_env
+                    paramsMap['zone_a'] = env.zone_a
+                    paramsMap['web_port_name'] = env.web_port_name
+                    paramsMap['tf_state_bucket_instance_prefix'] = params.sap_tf_prefix
+                    paramsMap['tf_state_bucket'] = env.TERRAFORM_BUCKET_ID
+                    paramsMap['webdisp_sid'] = params.sap_nw_primary_sid
+                    paramsMap['gce_ssh_user'] = env.gce_ssh_user ? env.gce_ssh_user:""
+                    paramsMap['hana_script_path'] = env.hana_script_path ? env.hana_script_path:""
+                    paramsMap['nw_script_path'] = env.nw_script_path ? env.nw_script_path:""
+
+                    writeFile file: "${env.TF_FOLDER_LB}/terraform.tfvars.json", 
+                            text: JsonOutput.prettyPrint(JsonOutput.toJson(paramsMap))
+                }
+            }
+        }
+
+        stage('Terraform Plan and Approve for Load balancer') {
+            steps {
+                script {
+                    // def bucketId = "${env.TERRAFORM_BUCKET_ID}"
+                    // def prefixId = "${env.TERRAFORM_PREFIX_ID}"
+                    def bucketId = "${env.TERRAFORM_LB_BUCKET_ID}"
+                    def prefixId = "${env.TERRAFORM_LB_PREFIX_ID}"
+
+                    if (!bucketId || !prefixId) {
+                        error "Bucket and prefix ID not found for ${TF_FOLDER_LB}"
+                    }
+
+                    echo "Executing Terraform init and plan in ${TF_FOLDER_LB} with backend bucket=${bucketId}, prefix=${prefixId}"
+
+                    withCredentials([file(credentialsId: 'gcp-key-new', variable: 'GOOGLE_APPLICATION_CREDENTIALS')]) {
+
+                    dir("${TF_FOLDER_LB}") {
+                                        sh "cat terraform.tfvars.json"
+
+                                        sh """
+                                            
+                                            terraform init \\
+                                                -backend-config="bucket=${bucketId}" \\
+                                                -backend-config="prefix=${prefixId}" \\
+                                                -reconfigure
+                                        """
+
+                                        // Capture Terraform plan output into a file
+                                        sh "terraform plan -var-file=terraform.tfvars.json -compact-warnings | tee terraform-plan.log"
+                        }
+
+                    }
+
+
+                    input message: "Do you want to proceed with Terraform Configuration Deployment?", ok: "Proceed"
+
+                    withCredentials([file(credentialsId: 'gcp-key-new', variable: 'GOOGLE_APPLICATION_CREDENTIALS')]) {
+                        dir("${TF_FOLDER_LB}") {
+                            sh "terraform apply -auto-approve -var-file=\"terraform.tfvars.json\""
+                        }
+                    }
+                }
+            }
+        }
+
+
+        stage('Prepare Host Inventory') {
+            steps {
+                script {
+                    dir("${TF_FOLDER}") {
+                        echo "Extracting Terraform output for ${TF_FOLDER}"
+
+                        // Get Terraform JSON output
+                        def terraformOutput = sh(script: 'terraform output -json', returnStdout: true).trim()
+                        def jsonOutput = readJSON(text: terraformOutput)
+
+                        // Extract inventory
+                        def inventoryList = jsonOutput.inventory?.value ?: []
+                        def primaryInstanceUrls = jsonOutput.nw_primary_instance_name?.value ?: []
+                        def secondaryInstanceUrls = jsonOutput.nw_secondary_instance_name?.value ?: []
+
+                        if (inventoryList.isEmpty() || (primaryInstanceUrls.isEmpty() && secondaryInstanceUrls.isEmpty())) {
+                            error "Error: Required Terraform outputs are missing"
+                        }
+
+                        // Build host -> instance_name mapping
+                        def hostInfoMap = [:]
+                        inventoryList.each { item ->
+                            def ip = item.host
+                            def isPrimary = item.vars["sap_nw_is_primary"] == "true"
+                            // def sap_nw_is_primary = isPrimary
+                            def instanceName = isPrimary ? primaryInstanceUrls[0].tokenize('/').last() : secondaryInstanceUrls[0].tokenize('/').last()
+                            // hostMap[ip] = instanceName
+                            hostInfoMap[ip] = [instanceName: instanceName, isPrimary: isPrimary]                        
+                        }
+
+                        def groupName = inventoryList[0]?.groups[0] ?: "nw"
+                        def yamlContent = "all:\n  children:\n    ${groupName}:\n      hosts:\n"
+
+                        // hostMap.each { ip, instanceName ->
+                        //     yamlContent += "        ${ip}:\n          instance_name: ${instanceName}\n          sap_nw_is_primary: ${isPrimary}\n"
+                        // }
+
+                        hostInfoMap.each { ip, hostInfo ->
+                            // Use the stored isPrimary value for the current host
+                            yamlContent += "        ${ip}:\n          instance_name: ${hostInfo.instanceName}\n          sap_nw_is_primary: ${hostInfo.isPrimary}\n"
+                        }
+
+                        def yamlFilePath = "${env.WORKSPACE}/${env.ANSIBLE_FOLDER}/inventory.yml"
+                        writeFile file: yamlFilePath, text: yamlContent
+
+                        echo "Inventory YAML file created at ${yamlFilePath}"
+                    }
+                }
+            }
+        }
+
+
+
+        stage('Prepare Ansible Input Vars File') {
+            steps {
+                script {
+
+                    input message: "Do you want to proceed with Ansible Execution?", ok: "Proceed"
+
+                    def yamlContent = """
+                        sap_project_id: ${env.PROJECT_ID }
+                        sap_nw_primary_sid: ${params.sap_nw_primary_sid}
+                        sap_nw_primary_instance_ip: ${params.sap_nw_primary_instance_ip}
+                        sap_nw_primary_instance_number: "${params.sap_nw_primary_instance_number}"
+                        sap_nw_primary_instance_name: ${params.sap_nw_primary_instance_name}
+                        sapmnt_primary_nfs_server_path: ${params.sapmnt_primary_nfs_server_path}
+                        sap_nw_secondary_sid: ${params.sap_nw_secondary_sid}
+                        sap_nw_secondary_instance_ip: ${params.sap_nw_secondary_instance_ip}
+                        sap_nw_secondary_instance_number: "${params.sap_nw_secondary_instance_number}"
+                        sap_nw_secondary_instance_name: ${params.sap_nw_secondary_instance_name}
+                        sap_ssh_user: ${env.GCE_SSH_USER}
+                        sapmnt_secondary_nfs_server_path: ${params.sapmnt_secondary_nfs_server_path}
+                        sap_nw_password: "${env.SAP_NW_PASSWORD}"
+                        sap_nw_product_and_version: '${env.product_and_version}'
+                        sap_nw_sidadm_uid: ${params.sap_nw_sidadm_uid}
+                        sap_nw_sapadm_uid: ${params.sap_nw_sapadm_uid}
+                        sap_sapsys_gid: ${params.sap_sapsys_gid}
+                        sap_nw_install_files_bucket: ${env.SAP_NW_INSTALL_FILES_BUCKET}
+                        sap_nw_is_primary: true
+                        sap_nw_primary_zone: ${params.sap_nw_primary_zone}
+                        sap_nw_secondary_zone: ${params.sap_nw_secondary_zone}
+                        sap_host_fqdn: ${env.SAP_HOST_FQDN}
+                        sap_sapinst_nw: true
+                    """.stripIndent()
+
+                    // writeFile file: DEPLOY_VARS_FILE, text: yamlContent
+                    
+                    sh "mkdir -p ${env.WORKSPACE}/${env.ANSIBLE_FOLDER}/vars"
+
+                    writeFile file: "${env.WORKSPACE}/${env.ANSIBLE_FOLDER}/vars/deploy-vars.yml", text: yamlContent
+                    
+                }
+            }
+        }
+
+        stage('Wait for SSH Connection to All Hosts') {
+            steps {
+                script {
+                            def connectedHosts = [] as Set  // Use a Set to avoid duplicates
+                            def retryCount = 0
+                            def maxRetries = 5  // Maximum retry attempts
+                            def retryDelay = 40 // Delay between retries (seconds)
+
+                            // Read the inventory.yml file as YAML
+                            def inventoryData = readYaml file: "${env.ANSIBLE_FOLDER}/inventory.yml"
+                            def inventoryHosts = []
+
+                            // Navigate through YAML to extract host IPs
+                            if (inventoryData?.all?.children?.nw?.hosts) {
+                                inventoryHosts = inventoryData.all.children.nw.hosts.keySet().toList()
+                            } else {
+                                error "No hosts found in inventory.yml!"
+                            }
+
+                            echo "Hosts from inventory: ${inventoryHosts}"
+
+                            def sshUser = env.SSH_USER
+                            echo "Using SSH User: ${sshUser}"
+
+                            while (connectedHosts.size() < inventoryHosts.size() && retryCount < maxRetries) {
+                                def remainingHosts = inventoryHosts - connectedHosts  // Hosts that still need checking
+
+                                for (host in remainingHosts) {
+                                    echo "Attempting SSH connection to ${sshUser}@${host}, try #${retryCount + 1}"
+                                    def result = sh(script: "ssh -o StrictHostKeyChecking=no -o ConnectTimeout=10 ${sshUser}@${host} 'exit'", returnStatus: true)
+
+                                    if (result == 0) {
+                                        echo "SSH connection successful for ${host}"
+                                        connectedHosts.add(host)
+                                    } else {
+                                        echo "SSH connection failed for ${host}. Moving to the next host..."
+                                    }
+                                }
+
+                                retryCount++
+                                if (connectedHosts.size() < inventoryHosts.size() && retryCount < maxRetries) {
+                                    sleep(retryDelay)
+                                }
+                            }
+
+                            // Fail if any hosts remain unreachable
+                            if (connectedHosts.size() < inventoryHosts.size()) {
+                                error "Failed to connect to some hosts after ${maxRetries} attempts: ${(inventoryHosts - connectedHosts)}"
+                            } else {
+                                echo "All hosts are reachable. Proceeding with Ansible playbook execution."
+                            }
+                        }
+                    }
+                }
+
+
+        stage("Execute Ansible"){
+            steps {
+                script {
+                    // Send mail for ansible execution
+                    def teamEmail = 'priya.harsha724@gmail.com'
+                    def subject_exe = "Initiation of Webdispatcher-HA deployment in PRPROD environment"
+
+                    def body_exe = """
+                        <html>
+                        <body>
+                            <p>Dear Team,</p>
+                            <p>The deployment of <strong>Webdispatcher-HA</strong> system in the <strong>Pre-Production</strong> environment has been initiated from the Jenkins UI. Please find the build information below:</p>
+
+                            <ul>
+                                <li><strong>Job:</strong> ${env.JOB_NAME}</li>
+                                <li><strong>Build Number:</strong> ${env.BUILD_NUMBER}</li>
+                                <li><strong>Build URL:</strong> <a href="${env.BUILD_URL}">${env.BUILD_URL}</a></li>
+                            </ul>
+
+                            <p>Regards,</p>
+                        </body>
+                        </html>
+                    """
+
+                    mail(
+                        to: teamEmail,
+                        subject: subject_exe,
+                        body: body_exe,
+                        mimeType: 'text/html'
+                    )
+                    dir("${ANSIBLE_FOLDER}") {
+
+                            ansiblePlaybook(
+                                disableHostKeyChecking: true,
+                                installation: 'Ansible',
+                                inventory: "inventory.yml",
+                                playbook: "playbook.yml",
+                                extras: "-e @vars/${deployvars_filename}",
+                                extraVars: [
+                                    "ansible_ssh_private_key_file": ANSIBLE_PRIVATE_KEY,
+                                    "ansible_user": SSH_USER
+                                ]
+                            )
+
+                    }
+
+                    def yamlContent = """
+                        sap_project_id: ${env.PROJECT_ID }
+                        sap_nw_primary_sid: ${params.sap_nw_primary_sid}
+                        sap_nw_primary_instance_ip: ${params.sap_nw_primary_instance_ip}
+                        sap_nw_primary_instance_number: ${params.sap_nw_primary_instance_number}
+                        sap_nw_primary_instance_name: ${params.sap_nw_primary_instance_name}
+                        sapmnt_primary_nfs_server_path: ${params.sapmnt_primary_nfs_server_path}
+                        sap_nw_secondary_sid: ${params.sap_nw_secondary_sid}
+                        sap_nw_secondary_instance_ip: ${params.sap_nw_secondary_instance_ip}
+                        sap_nw_secondary_instance_number: ${params.sap_nw_secondary_instance_number}
+                        sap_nw_secondary_instance_name: ${params.sap_nw_secondary_instance_name}
+                        sap_ssh_user: ${env.GCE_SSH_USER}
+                        sapmnt_secondary_nfs_server_path: ${params.sapmnt_secondary_nfs_server_path}
+                        sap_nw_password: "${env.SAP_NW_PASSWORD}"
+                        sap_nw_product_and_version: '${env.product_and_version}'
+                        sap_nw_sidadm_uid: ${params.sap_nw_sidadm_uid}
+                        sap_nw_sapadm_uid: ${params.sap_nw_sapadm_uid}
+                        sap_sapsys_gid: ${params.sap_sapsys_gid}
+                        sap_nw_install_files_bucket: ${env.SAP_NW_INSTALL_FILES_BUCKET}
+                        sap_nw_is_primary: true
+                        sap_nw_primary_zone: ${params.sap_nw_primary_zone}
+                        sap_nw_secondary_zone: ${params.sap_nw_secondary_zone}
+                        sap_host_fqdn: ${env.SAP_HOST_FQDN}
+                        sap_sapinst_nw: true
+                    """.stripIndent()
+
+                    writeFile file: "${env.ANSIBLE_FOLDER}/vars/deploy-vars.yml", text: yamlContent
+                    // Send mail for successful deployment
+                    def subject_cmp = "Webdispatcher-HA Deployment Successfully Completed in PRPROD environment"
+
+                    def body_cmp = """
+                        <html>
+                        <body>
+                            <p>Dear Team,</p>
+
+                            <p>The deployment of <strong>Webdispatcher-HA</strong> system in the <strong>Pre-Production</strong> environment has been successfully completed. Below are the details of the newly created instance:</p>
+
+                            <table cellspacing="0" cellpadding="5" border="1" style="border-collapse: collapse;">
+                                <tr><th align="left">Instance Name</th><td>${params.sap_nw_instance_name}</td></tr>
+                                <tr><th align="left">Zone</th><td>${params.sap_nw_zone}</td></tr>
+                                <tr><th align="left">Private IP Address</th><td>${params.sap_nw_instance_ip}</td></tr>
+                            </table>
+
+                            <p><strong>Build Information:</strong></p>
+                            <ul>
+                                <li><strong>Job:</strong> ${env.JOB_NAME}</li>
+                                <li><strong>Build Number:</strong> ${env.BUILD_NUMBER}</li>
+                                <li><strong>Build URL:</strong> <a href="${env.BUILD_URL}">${env.BUILD_URL}</a></li>
+                            </ul>
+
+                            <p>Best regards</p>
+                        </body>
+                        </html>
+                    """
+
+                    mail(
+                        to: teamEmail,
+                        subject: subject_cmp,
+                        body: body_cmp,
+                        mimeType: 'text/html'
+                    )
+                }
+            }
+        }
+
+        
+        stage('Add the files to Git Repository') {
+            steps {
+                script {
+                    withCredentials([string(credentialsId: 'git-key', variable: 'GIT_SECRET')]) {
+                        def timestamp = new Date().format("yyyyMMddHHmmss")
+                        def git_folder_name = "${params.sap_nw_primary_sid}_${timestamp}"
+                        def target_folder = "${env.GIT_FOLDER}/${git_folder_name}"
+                        def tfvarsFile = "${env.TF_FOLDER}/terraform.tfvars.json"
+                        def tfvarsFile_lb = "${env.TF_FOLDER_LB}/terraform.tfvars.json"
+                        def inventoryFile = "${env.ANSIBLE_FOLDER}/inventory.yml"
+                        def deployvarsFile = "${env.ANSIBLE_FOLDER}/vars/deploy-vars.yml"
+
+                        sh """
+                            mkdir -p ${target_folder}
+                            cp ${tfvarsFile} ${target_folder}/terraform.tfvars.json
+                            cp ${tfvarsFile_lb} ${target_folder}/terraformlb.tfvars.json
+                            cp ${inventoryFile} ${target_folder}/inventory.yml
+                            cp ${deployvarsFile} ${target_folder}/deploy-vars.yml
+
+                            git config user.name "${GIT_USER_NAME}"
+                            git config user.email "${GIT_USER_EMAIL}"
+
+                            git add ${target_folder}
+                            git commit -m "Add deployment files for ${git_folder_name}" || echo 'No changes to commit'
+                            git push https://${GIT_USER_NAME}:${GIT_SECRET}@${GIT_REPO_URL} HEAD:main
+                        """
+                    }
+                }
+            }
+        } 
+
+    }
+        //     post {
+        //         // Clean after build
+        //         always {
+        //             cleanWs(cleanWhenNotBuilt: false,
+        //                     deleteDirs: true,
+        //                     disableDeferredWipeout: true,
+        //                     notFailBuild: true)
+        //         }
+        // }
+}

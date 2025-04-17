@@ -1,5 +1,5 @@
 module "web_loadbalancer" {
-  source                          = "../../../terraform/modules/web-loadbalancers"
+  source                          = "../../../../terraform/modules/web-loadbalancers"
   project_id                      = var.project_id
   env                             = var.env
   glb_address_1                   = var.glb_address_1
