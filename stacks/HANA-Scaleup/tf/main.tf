@@ -27,7 +27,6 @@ module "gcp_hana" {
   instance_name         = var.sap_instance_name
   instance_ip           = var.sap_instance_ip
   instance_type         = var.sap_instance_type
-  # use_public_ip         = var.sap_use_public_ip
   boot_disk_size        = var.sap_boot_disk_size
   boot_disk_type        = var.sap_boot_disk_type
   autodelete_disk       = var.sap_autodelete_boot_disk
@@ -36,11 +35,6 @@ module "gcp_hana" {
   hana_shared_size      = var.sap_shared_disk_size
   hana_usr_size      = var.sap_usrsap_disk_size
   swap_disk_size        = var.sap_swap_disk_size
-  # data_disk_type        = var.sap_data_disk_type
-  # log_disk_type         = var.sap_log_disk_type
-  # shared_disk_type      = var.sap_shared_disk_type
-  # usrsap_disk_type      = var.sap_usrsap_disk_type
-  # swap_disk_type        = var.sap_swap_disk_type
   hana_addon_disks      = var.sap_addon_disks
   service_account_email = var.sap_service_account_email
   network_tags          = var.sap_network_tags
