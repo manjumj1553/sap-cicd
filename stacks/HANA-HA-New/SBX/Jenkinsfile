@@ -1,0 +1,689 @@
+import groovy.json.JsonOutput
+pipeline {
+    agent any
+    
+    environment {
+        GOOGLE_APPLICATION_CREDENTIALS = credentials('gcp-key-new')
+        GIT_REPO_URL = "github.com/haprcr/sap-cicd-devops"
+        GIT_USER_EMAIL = "mahekar@google.com"
+        GIT_USER_NAME = "mahekar"
+        TF_FOLDER = "stacks/HANA-HA-New/tf"
+        ANSIBLE_ROLES_PATH = "${env.WORKSPACE}/ansible/roles"
+        ANSIBLE_FOLDER = "stacks/HANA-HA-New"
+        GIT_FOLDER = "stacks/HANA-HA-New/SBX"
+        ANSIBLE_PRIVATE_KEY = "/var/lib/jenkins/.ssh/id_rsa"
+        deployvars_filename = "deploy-vars.yml"
+        BUCKET_ID_FILES = "hana_ha_cicd"
+        
+        PROJECT_ID = "sap-iac-test"
+        SUBNETWORK_PROJECT = "sap-iac-test"
+        SOURCE_IMAGE_NAME = "rhel-9-2-sap-v20250415"
+        SOURCE_IMAGE_PROJECT = "rhel-sap-cloud"
+        TERRAFORM_BUCKET_ID = "bucket-cicd-jenkins"
+        TERRAFORM_PREFIX_ID = "hanahajenkins21Apr2025"
+        SSH_USER = "mahekar"
+        GCE_SSH_PUB_KEY_FILE = "~/.ssh/id_rsa.pub"
+
+        SAP_HANA_BOOT_DISK_SIZE = "50"
+        SAP_HANA_BOOT_DISK_TYPE = "pd-ssd"
+        SAP_HANA_AUTODELETE_BOOT_DISK = "true"
+        SAP_HANA_DATA_DISK_SIZE = "249"
+        SAP_HANA_LOG_DISK_SIZE = "104"
+        SAP_HANA_SHARED_DISK_SIZE = "208"
+        SAP_HANA_USRSAP_DISK_SIZE = "32"
+        SAP_HANA_SWAP_DISK_SIZE = "2"
+        SAP_HANA_DATA_DISK_TYPE = "pd-ssd"
+        SAP_HANA_LOG_DISK_TYPE = "pd-ssd"
+        SAP_HANA_SHARED_DISK_TYPE = "pd-ssd"
+        SAP_HANA_USRSAP_DISK_TYPE = "pd-ssd"
+        SAP_HANA_SWAP_DISK_TYPE = "pd-ssd"
+        SAP_HANA_SERVICE_ACCOUNT_EMAIL = "811811474621-compute@developer.gserviceaccount.com"
+        SAP_HANA_NETWORK_TAGS = "sap-allow-all"
+        SAP_HANA_PD_KMS_KEY = "projects/sap-iac-test/locations/global/keyRings/paypal-ring/cryptoKeys/paypal-key"
+        
+        SAP_NETWORK_PROJECT_ID = "sap-iac-test"
+        SAP_HANA_HEALTH_CHECK_PORT = "60000"
+        SAP_HANA_HEALTH_CHECK_PORT_NAME = "paypal-sap-h8p-health-check-port"
+        SAP_HANA_HEALTH_CHECK_NAME = "paypal-sap-h8p-hlthchk-dbvip-01"
+        SAP_HANA_BACKEND_SERVICE_NAME = "paypal-sap-h8p-backend-dbvip-01"
+
+        sap_hana_install_files_bucket = "sap-deployment-media"
+        sap_hana_virtual_host = "usch8phdb"
+        sap_host_fqdn = "paypal.com"
+        sap_sapsys_gid = "2626"
+        sap_hana_system_uid = "2525"
+        sap_hana_fast_restart = "true"
+        sap_hana_backint_install = "true"
+        sap_hana_backint_bucket_name = "sap-hana-state-bg-mj"
+        sap_hana_password = "Paypal12345"        
+    }
+
+    parameters {
+        string(name: 'subnetwork', defaultValue: 'db-central', description: "Subnetwork name")
+        string(name: 'sap_hana_primary_zone', defaultValue: 'us-central1-a', description: "Primary zone for HANA instance deployment")
+        string(name: 'sap_hana_primary_instance_name', defaultValue: 'usch8phdb01', description: "Name of the primary HANA instance")
+        string(name: 'sap_hana_primary_instance_ip', defaultValue: '10.5.0.10', description: "Static IP address for the primary HANA instance")
+        string(name: 'sap_hana_primary_labels', defaultValue: '{ app = "hana-primary" }', description: "Labels for the SAP instance (key-value pairs)")
+        string(name: 'sap_hana_primary_instance_group_name', defaultValue: 'paypal-sap-h8p-instgrp-db-01', description: "Name of the primary HANA instance group")
+        string(name: 'sap_hana_secondary_zone', defaultValue: 'us-central1-b', description: "Secondary zone for HANA instance deployment")
+        string(name: 'sap_hana_secondary_instance_name', defaultValue: 'usch8phdb02', description: "Name of the secondary HANA instance")
+        string(name: 'sap_hana_secondary_instance_ip', defaultValue: '10.5.0.11', description: "Static IP address for the secondary HANA instance")
+        string(name: 'sap_hana_secondary_labels', defaultValue: '{ app = "hana-secondary" }', description: "Labels for the SAP instance (key-value pairs)")
+        string(name: 'sap_hana_secondary_instance_group_name', defaultValue: 'paypal-sap-h8p-instgrp-db-02', description: "Name of the secondary HANA instance group")
+        choice(name: 'sap_hana_instance_type', choices: ['n1-standard-4','n1-highmem-32'],  
+          description: 'Machine type for the primary HANA instance'
+        )
+        string(name: 'sap_addon_disk_name', defaultValue: 'lssshared', description: "SAP additional disk name")
+        string(name: 'sap_addon_disk_size_gb', defaultValue: '2', description: "SAP additional disk size in GB")
+        string(name: 'sap_addon_disk_type', defaultValue: 'pd-ssd', description: "SAP additional disk type")
+        string(name: 'sap_hana_ilb_name', defaultValue: 'paypal-sap-h8p-tcplb-dbvip-01', description: "SAP ILB Name")
+        string(name: 'sap_hana_ilb_ip_address', defaultValue: '10.5.0.12', description: "ILB Ip Address")
+        string(name: 'sap_hana_sid', defaultValue: 'H8P', description: "System ID of HANA-HA")
+        string(name: 'sap_hana_instance_number', defaultValue: '00', description: "HANA Instance Number")
+    }
+
+
+    stages {
+        stage('Prepare TF variable file') {
+            steps {
+                script {
+                    def paramsMap = [:]
+
+                    def namedPortList = []
+                    def portNamesList = env.SAP_HANA_HEALTH_CHECK_PORT_NAME?.trim()
+                    def portValuesList = env.SAP_HANA_HEALTH_CHECK_PORT?.trim()
+                    def portNames = portNamesList.split(',').collect { it.trim() }
+                    def portValues = portValuesList.split(',').collect { it.trim() }
+                    for (int i = 0; i < portNames.size(); i++) {
+                        def namedPortMap = [
+                            name: portNames[i],
+                            port: portValues[i]
+                        ]
+                        namedPortList << namedPortMap
+                    }
+                    paramsMap['sap_hana_primary_named_ports'] = namedPortList
+                    paramsMap['sap_hana_secondary_named_ports'] = namedPortList
+                    
+                    params.each { key, value ->
+                        switch (key) {
+                            case 'sap_hana_primary_labels':
+                            case 'sap_hana_secondary_labels':
+                                try {
+                                    paramsMap[key] = readJSON(text: value)
+                                } catch (Exception e) {
+                                    error("Invalid JSON format for ${key}: ${value}")
+                                }
+                                break
+
+                            case ['sap_addon_disk_name', 'sap_addon_disk_size_gb', 'sap_addon_disk_type']:
+                                def names = params['sap_addon_disk_name'].split(',').collect { it.trim() }
+                                def sizes = params['sap_addon_disk_size_gb'].split(',').collect { it.trim().toInteger() }
+                                def types = params['sap_addon_disk_type'].split(',').collect { it.trim() }
+
+                                if (names.size() != sizes.size() || names.size() != types.size()) {
+                                    error("The number of disk names, sizes, and types must be the same.")
+                                }
+
+                                def addonDisksByName = []
+                                def addonDisksBySize = []
+                                def addonDisksByType = []
+                                for (int i = 0; i < names.size(); i++) {
+                                    addonDisksByName << names[i]
+                                    addonDisksBySize << sizes[i]
+                                    addonDisksByType << types[i]
+                                }
+                                paramsMap['sap_hana_primary_addon_disks'] = [
+                                    name: addonDisksByName,
+                                    disk_size_gb: addonDisksBySize,
+                                    disk_type: addonDisksByType
+                                ]
+                                paramsMap['sap_hana_secondary_addon_disks'] = [
+                                    name: addonDisksByName,
+                                    disk_size_gb: addonDisksBySize,
+                                    disk_type: addonDisksByType
+                                ]
+                                break
+
+                            default:
+                                paramsMap[key] = value  
+                        }
+                    }
+                    
+                    // Add environment variables
+                    paramsMap['project_id'] = env.PROJECT_ID 
+                    paramsMap['subnetwork_project'] = env.SUBNETWORK_PROJECT
+                    paramsMap['source_image_name'] = env.SOURCE_IMAGE_NAME
+                    paramsMap['source_image_project'] = env.SOURCE_IMAGE_PROJECT
+                    paramsMap['gce_ssh_user'] = env.SSH_USER
+                    paramsMap['gce_ssh_pub_key_file'] = env.GCE_SSH_PUB_KEY_FILE
+                    paramsMap['sap_hana_primary_boot_disk_size'] = env.SAP_HANA_BOOT_DISK_SIZE
+                    paramsMap['sap_hana_primary_boot_disk_type'] = env.SAP_HANA_BOOT_DISK_TYPE
+                    paramsMap['sap_hana_primary_autodelete_boot_disk'] = env.SAP_HANA_AUTODELETE_BOOT_DISK ? env.SAP_HANA_AUTODELETE_BOOT_DISK : true
+                    paramsMap['sap_hana_primary_data_disk_size'] = env.SAP_HANA_DATA_DISK_SIZE
+                    paramsMap['sap_hana_primary_log_disk_size'] = env.SAP_HANA_LOG_DISK_SIZE
+                    paramsMap['sap_hana_primary_shared_disk_size'] = env.SAP_HANA_SHARED_DISK_SIZE
+                    paramsMap['sap_hana_primary_usrsap_disk_size'] = env.SAP_HANA_USRSAP_DISK_SIZE
+                    paramsMap['sap_hana_primary_swap_disk_size'] = env.SAP_HANA_SWAP_DISK_SIZE
+                    paramsMap['sap_hana_primary_data_disk_type'] = env.SAP_HANA_DATA_DISK_TYPE
+                    paramsMap['sap_hana_primary_log_disk_type'] = env.SAP_HANA_LOG_DISK_TYPE
+                    paramsMap['sap_hana_primary_shared_disk_type'] = env.SAP_HANA_SHARED_DISK_TYPE
+                    paramsMap['sap_hana_primary_usrsap_disk_type'] = env.SAP_HANA_USRSAP_DISK_TYPE
+                    paramsMap['sap_hana_primary_swap_disk_type'] = env.SAP_HANA_SWAP_DISK_TYPE
+                    paramsMap['sap_hana_primary_service_account_email'] = env.SAP_HANA_SERVICE_ACCOUNT_EMAIL 
+                    paramsMap['sap_hana_primary_network_tags'] = [env.SAP_HANA_NETWORK_TAGS]
+                    paramsMap['sap_hana_primary_pd_kms_key'] = env.SAP_HANA_PD_KMS_KEY
+
+                    paramsMap['sap_hana_secondary_boot_disk_size'] = env.SAP_HANA_BOOT_DISK_SIZE
+                    paramsMap['sap_hana_secondary_boot_disk_type'] = env.SAP_HANA_BOOT_DISK_TYPE
+                    paramsMap['sap_hana_secondary_autodelete_boot_disk'] = env.SAP_HANA_AUTODELETE_BOOT_DISK ? env.SAP_HANA_AUTODELETE_BOOT_DISK : true
+                    paramsMap['sap_hana_secondary_data_disk_size'] = env.SAP_HANA_DATA_DISK_SIZE
+                    paramsMap['sap_hana_secondary_log_disk_size'] = env.SAP_HANA_LOG_DISK_SIZE
+                    paramsMap['sap_hana_secondary_shared_disk_size'] = env.SAP_HANA_SHARED_DISK_SIZE
+                    paramsMap['sap_hana_secondary_usrsap_disk_size'] = env.SAP_HANA_USRSAP_DISK_SIZE
+                    paramsMap['sap_hana_secondary_swap_disk_size'] = env.SAP_HANA_SWAP_DISK_SIZE
+                    paramsMap['sap_hana_secondary_data_disk_type'] = env.SAP_HANA_DATA_DISK_TYPE
+                    paramsMap['sap_hana_secondary_log_disk_type'] = env.SAP_HANA_LOG_DISK_TYPE
+                    paramsMap['sap_hana_secondary_shared_disk_type'] = env.SAP_HANA_SHARED_DISK_TYPE
+                    paramsMap['sap_hana_secondary_usrsap_disk_type'] = env.SAP_HANA_USRSAP_DISK_TYPE
+                    paramsMap['sap_hana_secondary_swap_disk_type'] = env.SAP_HANA_SWAP_DISK_TYPE
+                    paramsMap['sap_hana_secondary_service_account_email'] = env.SAP_HANA_SERVICE_ACCOUNT_EMAIL 
+                    paramsMap['sap_hana_secondary_network_tags'] = [env.SAP_HANA_NETWORK_TAGS]
+                    paramsMap['sap_hana_secondary_pd_kms_key'] = env.SAP_HANA_PD_KMS_KEY
+
+                    paramsMap['network_project'] = env.SAP_NETWORK_PROJECT_ID
+                    paramsMap['sap_hana_health_check_port'] = env.SAP_HANA_HEALTH_CHECK_PORT
+                    paramsMap['sap_hana_health_check_port_name'] = env.SAP_HANA_HEALTH_CHECK_PORT_NAME
+                    paramsMap['sap_hana_health_check_name'] = env.SAP_HANA_HEALTH_CHECK_NAME
+                    paramsMap['sap_hana_backend_service_name'] = env.SAP_HANA_BACKEND_SERVICE_NAME
+
+                    writeFile file: "${env.TF_FOLDER}/terraform.tfvars.json", text: JsonOutput.prettyPrint(JsonOutput.toJson(paramsMap)) 
+                }
+            }
+        }
+
+        stage('Terraform Plan and Approve') {
+            steps {
+                script {
+                    def bucketId = "${env.TERRAFORM_BUCKET_ID}"
+                    def prefixId = "${env.TERRAFORM_PREFIX_ID}"
+
+                    if (!bucketId || !prefixId) {
+                        error "Bucket and prefix ID not found for ${TF_FOLDER}"
+                    }
+
+                    echo "Executing Terraform init and plan in ${TF_FOLDER} with backend bucket=${bucketId}, prefix=${prefixId}"
+
+                    withCredentials([file(credentialsId: 'gcp-key-new', variable: 'GOOGLE_APPLICATION_CREDENTIALS')]) {
+                    dir("${TF_FOLDER}") {
+                                        sh "cat terraform.tfvars.json"
+
+                                        sh """
+                                            terraform init \\
+                                                -backend-config="bucket=${bucketId}" \\
+                                                -backend-config="prefix=${prefixId}" \\
+                                                -reconfigure
+                                        """
+
+                                        // Capture Terraform plan output into a file
+                                        sh "terraform plan -var-file=terraform.tfvars.json -compact-warnings | tee terraform-plan.log"
+
+                                        
+                        }
+                    
+                    def approverEmail = 'mayuri.ym94@gmail.com'
+                    def subject = "Approval Required: Terraform Execution"
+                    def logFilePath = "${TF_FOLDER}/terraform-plan.log"
+
+                    // Read Terraform Plan Output and truncate if too long
+                    def planOutput = readFile(logFilePath)
+
+                    def body = """
+                        <p>Terraform execution is requested. Please review and approve or reject.</p>
+                        
+                        <p><b>Job:</b> ${env.JOB_NAME}<br>
+                        <b>Build Number:</b> ${env.BUILD_NUMBER}<br>
+                        <b>URL:</b> <a href="${env.BUILD_URL}">${env.BUILD_URL}</a></p>
+
+                        <p><b>Terraform Plan Output (truncated):</b></p>
+                        <pre>${planOutput}</pre>
+
+                        <p><b>Approval Options:</b></p>
+                        <ul>
+                            <li><a href="${env.BUILD_URL}/input">✅ Approve Job</a></li>
+                            <li><a href="${env.BUILD_URL}/abort">❌ Reject Job</a></li>
+                        </ul>
+                    """
+
+                    mail(
+                        to: approverEmail,
+                        subject: subject,
+                        body: body,
+                        mimeType: 'text/html'
+                    )
+                }
+
+
+                input message: "Do you want to proceed with Terraform Configuration Deployment?", ok: "Proceed"
+
+                    withCredentials([file(credentialsId: 'gcp-key-new', variable: 'GOOGLE_APPLICATION_CREDENTIALS')]) {
+                        dir("${TF_FOLDER}") {
+                            sh "terraform apply -auto-approve -var-file=\"terraform.tfvars.json\""
+                        }
+                    }
+
+                    sh """
+                        echo "Fetching Terraform state file from GCS..."
+                        gsutil cat gs://${env.TERRAFORM_BUCKET_ID}/${env.TERRAFORM_PREFIX_ID}/default.tfstate
+                    """
+                }
+            }
+        }
+
+        stage('Prepare Host Inventory') {
+            steps {
+                script {
+                    dir("${TF_FOLDER}") {
+                            echo "Extracting Terraform output for ${TF_FOLDER}"
+
+                            // Get Terraform JSON output
+                            def terraformOutput = sh(script: 'terraform output -json', returnStdout: true).trim()
+                            def jsonOutput = readJSON(text: terraformOutput)
+
+                            // Extracting values properly
+                            def inventoryList = jsonOutput.inventory?.value ?: []
+                            def primaryInstanceUrls = jsonOutput.primary_instance_name?.value ?: []
+                            def secondaryInstanceUrls = jsonOutput.secondary_instance_name?.value ?: []
+
+                            if (inventoryList.isEmpty() || (primaryInstanceUrls.isEmpty() && secondaryInstanceUrls.isEmpty())) {
+                                error "Error: Required Terraform outputs are missing"
+                            }
+
+                            // Build host -> instance_name mapping
+                            def hostInfoMap = [:]
+                            inventoryList.each { item ->
+                                def ip = item.host
+                                def isPrimary = item.vars["sap_hana_is_primary"] == "true"
+                                def instanceName = isPrimary ? primaryInstanceUrls[0].tokenize('/').last() : secondaryInstanceUrls[0].tokenize('/').last()
+                                hostInfoMap[ip] = [instanceName: instanceName, isPrimary: isPrimary]                        
+                            }
+
+                            def groupName = inventoryList[0]?.groups[0] ?: "hana"
+                            def yamlContent = "all:\n  children:\n    ${groupName}:\n      hosts:\n"
+
+                            hostInfoMap.each { ip, hostInfo ->
+                            // Use the stored isPrimary value for the current host
+                                yamlContent += "        ${ip}:\n          instance_name: ${hostInfo.instanceName}\n          sap_hana_is_primary: ${hostInfo.isPrimary}\n"
+                            }
+
+                            def yamlFilePath = "${env.WORKSPACE}/${env.ANSIBLE_FOLDER}/inventory.yml"
+                            writeFile file: yamlFilePath, text: yamlContent
+
+                            echo "Inventory YAML file created at ${yamlFilePath}"
+                        }
+                    }
+                }
+        }
+
+        stage('Prepare Ansible Input Vars File') {
+            steps {
+                script {
+
+                    input message: "Do you want to proceed with Ansible Execution?", ok: "Proceed"
+
+                    def yamlContent = """
+                        sap_hana_primary_zone: "${params.sap_hana_primary_zone}"
+                        sap_hana_secondary_zone: "${params.sap_hana_secondary_zone}"
+                        sap_project_id: ${env.PROJECT_ID}
+                        sap_hana_primary_instance_name: "${params.sap_hana_primary_instance_name}"
+                        sap_hana_secondary_instance_name: "${params.sap_hana_secondary_instance_name}"
+                        sap_hana_primary_instance_ip: "${params.sap_hana_primary_instance_ip}"
+                        sap_hana_secondary_instance_ip: "${params.sap_hana_secondary_instance_ip}"
+                        sap_hana_ilb_name: "${params.sap_hana_ilb_name}"
+                        sap_hana_ilb_ip_address: "${params.sap_hana_ilb_ip_address}"
+                        sap_hana_install_files_bucket: ${env.sap_hana_install_files_bucket}
+                        sap_hana_virtual_host:  ${env.sap_hana_virtual_host}
+                        sap_hana_sid: ${params.sap_hana_sid}
+                        sap_host_fqdn: "${env.sap_host_fqdn}"
+                        sap_hana_instance_number: "${params.sap_hana_instance_number}"
+                        sap_sapsys_gid: ${env.sap_sapsys_gid}
+                        sap_hana_system_uid: ${env.sap_hana_system_uid}
+                        sap_hana_fast_restart: ${env.sap_hana_fast_restart}
+                        sap_hana_backint_install: ${env.sap_hana_backint_install}
+                        sap_hana_backint_bucket_name: ${env.sap_hana_backint_bucket_name}
+                        sap_hana_password: "${env.sap_hana_password}"
+                    """.stripIndent()
+                    
+                    sh "mkdir -p ${env.ANSIBLE_FOLDER}/vars"
+
+                    writeFile file: "${env.ANSIBLE_FOLDER}/vars/deploy-vars.yml", text: yamlContent
+
+                }
+            }
+        }
+
+        stage('Wait for SSH Connection to All Hosts') {
+            steps {
+                script {
+                            def connectedHosts = [] as Set  // Use a Set to avoid duplicates
+                            def retryCount = 0
+                            def maxRetries = 5  // Maximum retry attempts
+                            def retryDelay = 40 // Delay between retries (seconds)
+
+                            // Read the inventory.yml file as YAML
+                            def inventoryData = readYaml file: "${env.ANSIBLE_FOLDER}/inventory.yml"
+                            def inventoryHosts = []
+
+                            // Navigate through YAML to extract host IPs
+                            if (inventoryData?.all?.children?.hana?.hosts) {
+                                inventoryHosts = inventoryData.all.children.hana.hosts.keySet().toList()
+                            } else {
+                                error "No hosts found in inventory.yml!"
+                            }
+
+                            echo "Hosts from inventory: ${inventoryHosts}"
+
+                            def sshUser = env.SSH_USER
+                            echo "Using SSH User: ${sshUser}"
+
+                            while (connectedHosts.size() < inventoryHosts.size() && retryCount < maxRetries) {
+                                def remainingHosts = inventoryHosts - connectedHosts  // Hosts that still need checking
+
+                                for (host in remainingHosts) {
+                                    echo "Attempting SSH connection to ${sshUser}@${host}, try #${retryCount + 1}"
+                                    def result = sh(script: "ssh -o StrictHostKeyChecking=no -o ConnectTimeout=10 ${sshUser}@${host} 'exit'", returnStatus: true)
+
+                                    if (result == 0) {
+                                        echo "SSH connection successful for ${host}"
+                                        connectedHosts.add(host)
+                                    } else {
+                                        echo "SSH connection failed for ${host}. Moving to the next host..."
+                                    }
+                                }
+
+                                retryCount++
+                                if (connectedHosts.size() < inventoryHosts.size() && retryCount < maxRetries) {
+                                    sleep(retryDelay)
+                                }
+                            }
+
+                            // Fail if any hosts remain unreachable
+                            if (connectedHosts.size() < inventoryHosts.size()) {
+                                error "Failed to connect to some hosts after ${maxRetries} attempts: ${(inventoryHosts - connectedHosts)}"
+                            } else {
+                                echo "All hosts are reachable. Proceeding with Ansible playbook execution."
+                            }
+                        }
+                    }
+                }
+
+        
+        stage("Execute Ansible"){
+            steps {
+                script {
+                    // Send mail for ansible execution
+                    def teamEmail = 'mayuri.ym94@gmail.com'
+                    def subject_exe = "Initiation of HANA-HA deployment"
+
+                    def body_exe = """
+                        <html>
+                        <body>
+                            <p>Dear Team,</p>
+                            <p>The deployment of <strong>HANA-HA system</strong> in the <strong>Sandbox</strong> environment has been initiated from the Jenkins UI. Please find the build information below:</p>
+
+                            <ul>
+                                <li><strong>Job:</strong> ${env.JOB_NAME}</li>
+                                <li><strong>Build Number:</strong> ${env.BUILD_NUMBER}</li>
+                                <li><strong>Build URL:</strong> <a href="${env.BUILD_URL}">${env.BUILD_URL}</a></li>
+                            </ul>
+
+                            <p>Regards,</p>
+                        </body>
+                        </html>
+                    """
+
+                    mail(
+                        to: teamEmail,
+                        subject: subject_exe,
+                        body: body_exe,
+                        mimeType: 'text/html'
+                    )
+                    dir("${ANSIBLE_FOLDER}") {
+
+                            ansiblePlaybook(
+                                disableHostKeyChecking: true,
+                                installation: 'Ansible',
+                                inventory: "inventory.yml",
+                                playbook: "playbook.yml",
+                                extras: "-e @vars/${deployvars_filename}",
+                                extraVars: [
+                                    "ansible_ssh_private_key_file": ANSIBLE_PRIVATE_KEY,
+                                    "ansible_user": SSH_USER
+                                ]
+                            )
+                    }
+
+                    def yamlContent = """
+                        sap_hana_primary_zone: "${params.sap_hana_primary_zone}"
+                        sap_hana_secondary_zone: "${params.sap_hana_secondary_zone}"
+                        sap_project_id: ${env.PROJECT_ID}
+                        sap_hana_primary_instance_name: "${params.sap_hana_primary_instance_name}"
+                        sap_hana_secondary_instance_name: "${params.sap_hana_secondary_instance_name}"
+                        sap_hana_primary_instance_ip: "${params.sap_hana_primary_instance_ip}"
+                        sap_hana_secondary_instance_ip: "${params.sap_hana_secondary_instance_ip}"
+                        sap_hana_ilb_name: "${params.sap_hana_ilb_name}"
+                        sap_hana_ilb_ip_address: "${params.sap_hana_ilb_ip_address}"
+                        sap_hana_install_files_bucket: ${env.sap_hana_install_files_bucket}
+                        sap_hana_virtual_host:  ${env.sap_hana_virtual_host}
+                        sap_hana_sid: ${params.sap_hana_sid}
+                        sap_host_fqdn: "${env.sap_host_fqdn}"
+                        sap_hana_instance_number: "${params.sap_hana_instance_number}"
+                        sap_sapsys_gid: ${env.sap_sapsys_gid}
+                        sap_hana_system_uid: ${env.sap_hana_system_uid}
+                        sap_hana_fast_restart: ${env.sap_hana_fast_restart}
+                        sap_hana_backint_install: ${env.sap_hana_backint_install}
+                        sap_hana_backint_bucket_name: ${env.sap_hana_backint_bucket_name}
+                    """.stripIndent()   
+
+                    writeFile file: "${env.ANSIBLE_FOLDER}/vars/deploy-vars.yml", text: yamlContent
+
+                    // Send mail for successful deployment
+                    def subject_cmp = "HANA-HA Deployment Successfully Completed in Sandbox environment"
+
+                    def body_cmp= """
+                        <html>
+                        <body>
+                            <p>Dear Team,</p>
+
+                            <p>The deployment of HANA-HA system has been successfully completed. Below are the details of the newly created instance:</p>
+
+                            <table cellspacing="0" cellpadding="5" border="1" style="border-collapse: collapse;">
+                                <tr><th align="left">Primary Instance Name</th><td>${params.sap_hana_primary_instance_name}</td></tr>
+                                <tr><th align="left">Zone</th><td>${params.sap_hana_primary_zone}</td></tr>
+                                <tr><th align="left">Private IP Address</th><td>${params.sap_hana_primary_instance_ip}</td></tr>
+                            </table>
+
+                            <table cellspacing="0" cellpadding="5" border="1" style="border-collapse: collapse;">
+                                <tr><th align="left">Secondary Instance Name</th><td>${params.sap_hana_secondary_instance_name}</td></tr>
+                                <tr><th align="left">Zone</th><td>${params.sap_hana_secondary_zone}</td></tr>
+                                <tr><th align="left">Private IP Address</th><td>${params.sap_hana_secondary_instance_ip}</td></tr>
+                            </table>
+
+                            <p><strong>Build Information:</strong></p>
+                            <ul>
+                                <li><strong>Job:</strong> ${env.JOB_NAME}</li>
+                                <li><strong>Build Number:</strong> ${env.BUILD_NUMBER}</li>
+                                <li><strong>Build URL:</strong> <a href="${env.BUILD_URL}">${env.BUILD_URL}</a></li>
+                            </ul>
+
+                            <p>Best regards</p>
+                        </body>
+                        </html>
+                    """
+
+                    mail(
+                        to: teamEmail,
+                        subject: subject_cmp,
+                        body: body_cmp,
+                        mimeType: 'text/html'
+                    )
+                }
+            }
+        }
+
+        stage('Update TF variable file to remove the Password') {
+            steps {
+                script {
+                    def paramsMap = [:]
+
+                    def namedPortList = []
+                    def portNamesList = env.SAP_HANA_HEALTH_CHECK_PORT_NAME?.trim()
+                    def portValuesList = env.SAP_HANA_HEALTH_CHECK_PORT?.trim()
+                    def portNames = portNamesList.split(',').collect { it.trim() }
+                    def portValues = portValuesList.split(',').collect { it.trim() }
+                    for (int i = 0; i < portNames.size(); i++) {
+                        def namedPortMap = [
+                            name: portNames[i],
+                            port: portValues[i]
+                        ]
+                        namedPortList << namedPortMap
+                    }
+                    paramsMap['sap_hana_primary_named_ports'] = namedPortList
+                    paramsMap['sap_hana_secondary_named_ports'] = namedPortList
+                    
+                    params.each { key, value ->
+                        switch (key) {
+                            case 'sap_hana_primary_labels':
+                            case 'sap_hana_secondary_labels':
+                                try {
+                                    paramsMap[key] = readJSON(text: value)
+                                } catch (Exception e) {
+                                    error("Invalid JSON format for ${key}: ${value}")
+                                }
+                                break
+
+                            case ['sap_addon_disk_name', 'sap_addon_disk_size_gb', 'sap_addon_disk_type']:
+                                def names = params['sap_addon_disk_name'].split(',').collect { it.trim() }
+                                def sizes = params['sap_addon_disk_size_gb'].split(',').collect { it.trim().toInteger() }
+                                def types = params['sap_addon_disk_type'].split(',').collect { it.trim() }
+
+                                if (names.size() != sizes.size() || names.size() != types.size()) {
+                                    error("The number of disk names, sizes, and types must be the same.")
+                                }
+
+                                def addonDisksByName = []
+                                def addonDisksBySize = []
+                                def addonDisksByType = []
+                                for (int i = 0; i < names.size(); i++) {
+                                    addonDisksByName << names[i]
+                                    addonDisksBySize << sizes[i]
+                                    addonDisksByType << types[i]
+                                }
+                                paramsMap['sap_hana_primary_addon_disks'] = [
+                                    name: addonDisksByName,
+                                    disk_size_gb: addonDisksBySize,
+                                    disk_type: addonDisksByType
+                                ]
+                                paramsMap['sap_hana_secondary_addon_disks'] = [
+                                    name: addonDisksByName,
+                                    disk_size_gb: addonDisksBySize,
+                                    disk_type: addonDisksByType
+                                ]
+                                break
+
+                            default:
+                                paramsMap[key] = value  
+                        }
+                    }
+                    
+                    // Add environment variables
+                    paramsMap['project_id'] = env.PROJECT_ID 
+                    paramsMap['subnetwork_project'] = env.SUBNETWORK_PROJECT
+                    paramsMap['source_image_name'] = env.SOURCE_IMAGE_NAME
+                    paramsMap['source_image_project'] = env.SOURCE_IMAGE_PROJECT
+                    paramsMap['gce_ssh_user'] = env.SSH_USER
+                    paramsMap['gce_ssh_pub_key_file'] = env.GCE_SSH_PUB_KEY_FILE
+                    paramsMap['sap_hana_primary_boot_disk_size'] = env.SAP_HANA_BOOT_DISK_SIZE
+                    paramsMap['sap_hana_primary_boot_disk_type'] = env.SAP_HANA_BOOT_DISK_TYPE
+                    paramsMap['sap_hana_primary_autodelete_boot_disk'] = env.SAP_HANA_AUTODELETE_BOOT_DISK ? env.SAP_HANA_AUTODELETE_BOOT_DISK : true
+                    paramsMap['sap_hana_primary_data_disk_size'] = env.SAP_HANA_DATA_DISK_SIZE
+                    paramsMap['sap_hana_primary_log_disk_size'] = env.SAP_HANA_LOG_DISK_SIZE
+                    paramsMap['sap_hana_primary_shared_disk_size'] = env.SAP_HANA_SHARED_DISK_SIZE
+                    paramsMap['sap_hana_primary_usrsap_disk_size'] = env.SAP_HANA_USRSAP_DISK_SIZE
+                    paramsMap['sap_hana_primary_swap_disk_size'] = env.SAP_HANA_SWAP_DISK_SIZE
+                    paramsMap['sap_hana_primary_data_disk_type'] = env.SAP_HANA_DATA_DISK_TYPE
+                    paramsMap['sap_hana_primary_log_disk_type'] = env.SAP_HANA_LOG_DISK_TYPE
+                    paramsMap['sap_hana_primary_shared_disk_type'] = env.SAP_HANA_SHARED_DISK_TYPE
+                    paramsMap['sap_hana_primary_usrsap_disk_type'] = env.SAP_HANA_USRSAP_DISK_TYPE
+                    paramsMap['sap_hana_primary_swap_disk_type'] = env.SAP_HANA_SWAP_DISK_TYPE
+                    paramsMap['sap_hana_primary_service_account_email'] = env.SAP_HANA_SERVICE_ACCOUNT_EMAIL 
+                    paramsMap['sap_hana_primary_network_tags'] = [env.SAP_HANA_NETWORK_TAGS]
+                    paramsMap['sap_hana_primary_pd_kms_key'] = env.SAP_HANA_PD_KMS_KEY
+
+                    paramsMap['sap_hana_secondary_boot_disk_size'] = env.SAP_HANA_BOOT_DISK_SIZE
+                    paramsMap['sap_hana_secondary_boot_disk_type'] = env.SAP_HANA_BOOT_DISK_TYPE
+                    paramsMap['sap_hana_secondary_autodelete_boot_disk'] = env.SAP_HANA_AUTODELETE_BOOT_DISK ? env.SAP_HANA_AUTODELETE_BOOT_DISK : true
+                    paramsMap['sap_hana_secondary_data_disk_size'] = env.SAP_HANA_DATA_DISK_SIZE
+                    paramsMap['sap_hana_secondary_log_disk_size'] = env.SAP_HANA_LOG_DISK_SIZE
+                    paramsMap['sap_hana_secondary_shared_disk_size'] = env.SAP_HANA_SHARED_DISK_SIZE
+                    paramsMap['sap_hana_secondary_usrsap_disk_size'] = env.SAP_HANA_USRSAP_DISK_SIZE
+                    paramsMap['sap_hana_secondary_swap_disk_size'] = env.SAP_HANA_SWAP_DISK_SIZE
+                    paramsMap['sap_hana_secondary_data_disk_type'] = env.SAP_HANA_DATA_DISK_TYPE
+                    paramsMap['sap_hana_secondary_log_disk_type'] = env.SAP_HANA_LOG_DISK_TYPE
+                    paramsMap['sap_hana_secondary_shared_disk_type'] = env.SAP_HANA_SHARED_DISK_TYPE
+                    paramsMap['sap_hana_secondary_usrsap_disk_type'] = env.SAP_HANA_USRSAP_DISK_TYPE
+                    paramsMap['sap_hana_secondary_swap_disk_type'] = env.SAP_HANA_SWAP_DISK_TYPE
+                    paramsMap['sap_hana_secondary_service_account_email'] = env.SAP_HANA_SERVICE_ACCOUNT_EMAIL 
+                    paramsMap['sap_hana_secondary_network_tags'] = [env.SAP_HANA_NETWORK_TAGS]
+                    paramsMap['sap_hana_secondary_pd_kms_key'] = env.SAP_HANA_PD_KMS_KEY
+
+                    paramsMap['network_project'] = env.SAP_NETWORK_PROJECT_ID
+                    paramsMap['sap_hana_health_check_port'] = env.SAP_HANA_HEALTH_CHECK_PORT
+                    paramsMap['sap_hana_health_check_port_name'] = env.SAP_HANA_HEALTH_CHECK_PORT_NAME
+                    paramsMap['sap_hana_health_check_name'] = env.SAP_HANA_HEALTH_CHECK_NAME
+                    paramsMap['sap_hana_backend_service_name'] = env.SAP_HANA_BACKEND_SERVICE_NAME
+
+                    writeFile file: "${env.TF_FOLDER}/terraform.tfvars.json", text: JsonOutput.prettyPrint(JsonOutput.toJson(paramsMap)) 
+                }
+            }
+        }
+
+        stage('Add the files to Git Repository') {
+            steps {
+                script {
+                    withCredentials([string(credentialsId: 'github-key-new', variable: 'GIT_SECRET')]) {
+                        def timestamp = new Date().format("yyyyMMddHHmmss")
+                        def git_folder_name = "${params.sap_hana_sid}_${timestamp}"
+                        def target_folder = "${env.GIT_FOLDER}/${git_folder_name}"
+                        def tfvarsFile = "${env.TF_FOLDER}/terraform.tfvars.json"
+                        def inventoryFile = "${env.ANSIBLE_FOLDER}/inventory.yml"
+                        def deployvarsFile = "${env.ANSIBLE_FOLDER}/vars/deploy-vars.yml"
+
+                        sh """
+                            mkdir -p ${target_folder}
+                            cp ${tfvarsFile} ${target_folder}/terraform.tfvars.json
+                            cp ${inventoryFile} ${target_folder}/inventory.yml
+                            cp ${deployvarsFile} ${target_folder}/deploy-vars.yml
+
+                            git config user.name "${GIT_USER_NAME}"
+                            git config user.email "${GIT_USER_EMAIL}"
+
+                            git add ${target_folder}
+                            git commit -m "Add deployment files for ${git_folder_name}" || echo 'No changes to commit'
+                            git push https://${GIT_USER_NAME}:${GIT_SECRET}@${GIT_REPO_URL} HEAD:main
+                        """
+                    }
+                }
+            }
+        }
+    }
+
+    post {
+                // Clean after build
+                always {
+                    cleanWs(cleanWhenNotBuilt: false,
+                            deleteDirs: true,
+                            disableDeferredWipeout: true,
+                            notFailBuild: true)
+                }
+    }
+}

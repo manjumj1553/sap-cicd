@@ -46,6 +46,17 @@
       pcs stonith show
     register: pcs_command_status
     changed_when: false
+    when:
+    - ansible_os_family == "RedHat"
+    - ansible_distribution_major_version == '8'
+    
+  - command: |
+      pcs stonith status
+    register: pcs_command_status
+    changed_when: false
+    when:
+    - ansible_os_family == "RedHat"
+    - ansible_distribution_major_version == '9'
 
   - name: configure stonith resources on primary
     command: >-
