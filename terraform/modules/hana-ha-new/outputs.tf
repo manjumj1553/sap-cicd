@@ -29,3 +29,7 @@ output "inventory" {
 output "instance_group_link" {
   value = module.sap_hana_umig.self_links[0]
 }
+
+output "instance_name_link" {
+  value = module.sap_hana_umig.instances_self_links
+}

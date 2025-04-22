@@ -17,3 +17,11 @@
 output "inventory" {
   value = concat(module.hana_ha_primary.inventory, module.hana_ha_secondary.inventory)
 }
+
+output "primary_instance_name" {
+  value = module.hana_ha_primary.instance_name_link
+}
+
+output "secondary_instance_name" {
+  value = module.hana_ha_secondary.instance_name_link
+}
