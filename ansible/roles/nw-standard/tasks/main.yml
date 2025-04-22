@@ -90,7 +90,7 @@
   vars:
     sap_product_id: '{{ sap_product_vars[sap_nw_product_and_version].onehost_product_id }}'
     sap_sapinst_swpm_path: '{{ sap_product_vars[sap_nw_product_and_version].swpm_path }}'
-    sap_sapinst_template: '{{ sap_product_vars[sap_nw_product_and_version].onehost_sapinst_template | default("inifile_onehost_bw4_hdb.param") }}'
+    sap_sapinst_template: '{{ sap_product_vars[sap_nw_product_and_version].onehost_sapinst_template | default("inifile_onehost_bw4_hdb.params") }}'
   when: 
     - sap_solman_stack|bool == false
     - sap_bw4hana_stack|bool == true
