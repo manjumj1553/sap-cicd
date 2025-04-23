@@ -1,0 +1,786 @@
+import groovy.json.JsonOutput
+pipeline {
+    agent any
+    
+    environment {
+        GOOGLE_APPLICATION_CREDENTIALS = credentials('gcp-key-new')
+        GIT_REPO_URL = "github.com/haprcr/sap-cicd-devops"
+        GIT_USER_EMAIL = "mahekar@google.com"
+        GIT_USER_NAME = "mahekar"
+        TF_FOLDER = "stacks/NetWeaver-HA-New/tf"
+        ANSIBLE_ROLES_PATH = "${env.WORKSPACE}/ansible/roles"
+        ANSIBLE_FOLDER = "stacks/NetWeaver-HA-New"
+        GIT_FOLDER = "stacks/NetWeaver-HA-New/DEV"
+        ANSIBLE_PRIVATE_KEY = "/var/lib/jenkins/.ssh/id_rsa"
+        deployvars_filename = "deploy-vars.yml"
+        BUCKET_ID_FILES = "netweaver_ha_cicd"
+        
+        PROJECT_ID = "sap-iac-test"
+        SUBNETWORK_PROJECT = "sap-iac-test"
+        SOURCE_IMAGE_NAME = "rhel-9-2-sap-v20241210"
+        SOURCE_IMAGE_PROJECT = "rhel-sap-cloud"
+        TERRAFORM_BUCKET_ID = "bucket-cicd-jenkins"
+        TERRAFORM_PREFIX_ID = "nwhajenkins23Apr2025"
+        SSH_USER = "mahekar"
+        GCE_SSH_PUB_KEY_FILE = "~/.ssh/id_rsa.pub"
+
+        // ASCS Inputs
+        SAP_NW_ASCS_BOOT_DISK_SIZE = "50"
+        SAP_NW_ASCS_BOOT_DISK_TYPE = "pd-ssd"
+        SAP_NW_ASCS_USRSAP_DISK_SIZE = "100"
+        SAP_NW_ASCS_USRSAP_DISK_TYPE = "pd-ssd"
+        SAP_NW_ASCS_SWAP_DISK_SIZE = "2"
+        SAP_NW_ASCS_SWAP_DISK_TYPE = "pd-ssd"
+        SAP_NW_ASCS_CREATE_INSTANCE_GROUP = "true"  //ASCS Instance Group always true
+        SAP_NW_ASCS_INSTANCE_GROUP_NAME = "paypal-sap-bwh-instgrp-ascs-01"
+
+        // ERS Inputs
+        SAP_NW_ERS_BOOT_DISK_SIZE = "50"
+        SAP_NW_ERS_BOOT_DISK_TYPE = "pd-ssd"
+        SAP_NW_ERS_USRSAP_DISK_SIZE = "100"
+        SAP_NW_ERS_USRSAP_DISK_TYPE = "pd-ssd"
+        SAP_NW_ERS_SWAP_DISK_SIZE = "2"
+        SAP_NW_ERS_SWAP_DISK_TYPE = "pd-ssd"
+        SAP_NW_ERS_CREATE_INSTANCE_GROUP = "true"   //ERS Instance Group always true
+        SAP_NW_ERS_INSTANCE_GROUP_NAME = "paypal-sap-bwh-instgrp-ers-01"
+
+        // PAS Inputs
+        SAP_NW_PAS_BOOT_DISK_SIZE = "50"
+        SAP_NW_PAS_BOOT_DISK_TYPE = "pd-ssd"
+        SAP_NW_PAS_USRSAP_DISK_SIZE = "100"
+        SAP_NW_PAS_USRSAP_DISK_TYPE = "pd-ssd"
+        SAP_NW_PAS_SWAP_DISK_SIZE = "2"
+        SAP_NW_PAS_SWAP_DISK_TYPE = "pd-ssd"
+        SAP_NW_PAS_CREATE_INSTANCE_GROUP = "false"  //PAS Instance Group Creation always false
+        SAP_NW_PAS_INSTANCE_GROUP_NAME = ""
+
+        SAP_NW_AUTODELETE_BOOT_DISK = "true"
+        SAP_NW_SERVICE_ACCOUNT_EMAIL = "811811474621-compute@developer.gserviceaccount.com"
+        SAP_NW_NETWORK_TAGS = "sap-allow-all"
+        SAP_NW_PD_KMS_KEY = "projects/sap-iac-test/locations/global/keyRings/paypal-ring/cryptoKeys/paypal-key"
+        
+        SAP_NETWORK_PROJECT_ID = "sap-iac-test"
+        SAP_NW_ASCS_HEALTH_CHECK_PORT = "60000"
+        SAP_NW_ASCS_HEALTH_CHECK_PORT_NAME = "paypal-sap-bwh-ascs-health-check-port"
+        SAP_NW_ASCS_HEALTH_CHECK_NAME = "paypal-sap-bwh-hlthchk-ascs-01"
+        SAP_NW_ASCS_BACKEND_SERVICE_NAME = "paypal-sap-bwh-backend-ascs-01"
+
+        SAP_NW_ERS_HEALTH_CHECK_PORT = "60001"
+        SAP_NW_ERS_HEALTH_CHECK_PORT_NAME = "paypal-sap-bwh-ers-health-check-port"
+        SAP_NW_ERS_HEALTH_CHECK_NAME = "paypal-sap-bwh-hlthchk-ers-01"
+        SAP_NW_ERS_BACKEND_SERVICE_NAME = "paypal-sap-bwh-backend-ers-01"
+
+        sap_nw_ascs_virtual_host = "uscbwhascsvip"
+        sap_nw_ers_virtual_host = "uscbwhersvip"
+        sap_nw_pas_virtual_host = "uscbwhpasvip"
+        sap_host_fqdn = "paypal.com"
+        sap_hana_ilb_ip = "10.5.0.12"
+        sap_hana_virtual_host = "usch8phdb"
+        sap_nw_sidadm_uid = "1025"
+        sap_nw_sapadm_uid = "1032"
+        sap_sapsys_gid = "1028"
+        sap_nw_install_files_bucket = "sap-deployment-media"
+        sap_nw_create_nfs_source_dirs = "true"
+        sap_nw_ascs_install_web_dispatcher = "false"
+        sap_nw_product_and_version = "BW4HANA/2023"
+        sap_hana_password = "Paypal12345"
+        sap_nw_password = "Paypal12345"      
+    }
+
+    parameters {
+        string(name: 'subnetwork', defaultValue: 'db-central', description: "Subnetwork name")
+        string(name: 'primary_zone', defaultValue: 'us-central1-a', description: "Primary zone for NetWeaver instance deployment")
+        string(name: 'secondary_zone', defaultValue: 'us-central1-b', description: "Secondary zone for NetWeaver instance deployment")
+        string(name: 'sap_nw_ascs_instance_name', defaultValue: 'uscbwhascs01', description: "Name of the NetWeaver ASCS instance")
+        string(name: 'sap_nw_ascs_instance_ip', defaultValue: '10.5.0.16', description: "IP address for the NetWeaver ASCS instance")
+        choice(name: 'sap_nw_ascs_instance_type', choices: ['n2-standard-4','n2-standard-8'],  
+          description: 'Machine type for the NetWeaver ASCS instance'
+        )
+        string(name: 'sap_nw_ascs_labels', defaultValue: '{ env = "sbx" }', description: "Labels for the NetWeaver ASCS instance (key-value pairs)")
+
+        string(name: 'sap_nw_ers_instance_name', defaultValue: 'uscbwhers01', description: "Name of the NetWeaver ERS instance")
+        string(name: 'sap_nw_ers_instance_ip', defaultValue: '10.5.0.18', description: "IP address for the NetWeaver ERS instance")
+        choice(name: 'sap_nw_ers_instance_type', choices: ['n2-standard-4','n2-standard-8'],  
+          description: 'Machine type for the NetWeaver ERS instance'
+        )
+        string(name: 'sap_nw_ers_labels', defaultValue: '{ env = "sbx" }', description: "Labels for the NetWeaver ERS instance (key-value pairs)")
+
+        string(name: 'sap_nw_pas_instance_name', defaultValue: 'uscbwhpas01', description: "Name of the NetWeaver PAS instance")
+        string(name: 'sap_nw_pas_instance_ip', defaultValue: '10.5.0.19', description: "IP address for the NetWeaver PAS instance")
+        choice(name: 'sap_nw_pas_instance_type', choices: ['n2-standard-4','n2-standard-8'],  
+          description: 'Machine type for the NetWeaver PAS instance'
+        )
+        string(name: 'sap_nw_pas_labels', defaultValue: '{ env = "sbx" }', description: "Labels for the NetWeaver PAS instance (key-value pairs)")
+        string(name: 'sap_nw_pas_alias_ip', defaultValue: '10.5.0.24', description: "PAS Alias IP Address")
+
+        string(name: 'sap_nw_ascs_ilb_name', defaultValue: 'paypal-sap-bwh-ilb-ascs-01', description: "Name of ASCS Load balancer")
+        string(name: 'sap_nw_ascs_ilb_ip_address', defaultValue: '10.5.0.28', description: "IP Address of ASCS Load balancer")
+        string(name: 'sap_nw_ers_ilb_name', defaultValue: 'paypal-sap-bwh-ilb-ers-01', description: "Name of ERS Load balancer")
+        string(name: 'sap_nw_ers_ilb_ip_address', defaultValue: '10.5.0.31', description: "IP Address of ERS Load balancer")
+        string(name: 'sap_nw_nfs_src', defaultValue: '10.167.224.4:/paypalvol1/BWH', description: "NFS Server Path")
+        string(name: 'sap_nw_sid', defaultValue: 'BWH', description: "System ID of NetWeaver-HA")
+        string(name: 'sap_hana_sid', defaultValue: 'H8P', description: "System ID of HANA-HA")
+        string(name: 'sap_nw_ascs_instance_number', defaultValue: '00', description: "ASCS Instance Number")
+        string(name: 'sap_nw_ers_instance_number', defaultValue: '10', description: "ERS Instance Number")
+        string(name: 'sap_nw_pas_instance_number', defaultValue: '00', description: "PAS Instance Number")
+        string(name: 'sap_hana_instance_number', defaultValue: '00', description: "PAS Instance Number")
+    }
+
+
+    stages {
+        stage('Prepare TF variable file') {
+            steps {
+                script {
+                    def paramsMap = [:]
+
+                    def ascsNamedPortList = []
+                    def ascsPortNamesList = env.SAP_NW_ASCS_HEALTH_CHECK_PORT_NAME?.trim()
+                    def ascsPortValuesList = env.SAP_NW_ASCS_HEALTH_CHECK_PORT?.trim()
+                    def ascsPortNames = ascsPortNamesList.split(',').collect { it.trim() }
+                    def ascsPortValues = ascsPortValuesList.split(',').collect { it.trim() }
+                    for (int i = 0; i < ascsPortNames.size(); i++) {
+                        def ascsNamedPortMap = [
+                            name: ascsPortNames[i],
+                            port: ascsPortValues[i]
+                        ]
+                        ascsNamedPortList << ascsNamedPortMap
+                    }
+                    paramsMap['sap_nw_ascs_named_ports'] = ascsNamedPortList
+
+
+                    def ersNamedPortList = []
+                    def ersPortNamesList = env.SAP_NW_ERS_HEALTH_CHECK_PORT_NAME?.trim()
+                    def ersPortValuesList = env.SAP_NW_ERS_HEALTH_CHECK_PORT?.trim()
+                    def ersPortNames = ersPortNamesList.split(',').collect { it.trim() }
+                    def ersPortValues = ersPortValuesList.split(',').collect { it.trim() }
+                    for (int i = 0; i < ersPortNames.size(); i++) {
+                        def ersNamedPortMap = [
+                            name: ersPortNames[i],
+                            port: ersPortValues[i]
+                        ]
+                        ersNamedPortList << ersNamedPortMap
+                    }
+                    paramsMap['sap_nw_ers_named_ports'] = ersNamedPortList
+                    
+                    params.each { key, value ->
+                        switch (key) {
+                            case 'sap_nw_ascs_labels':
+                            case 'sap_nw_ers_labels':
+                            case 'sap_nw_pas_labels':
+                                try {
+                                    paramsMap[key] = readJSON(text: value)
+                                } catch (Exception e) {
+                                    error("Invalid JSON format for ${key}: ${value}")
+                                }
+                                break
+
+                            default:
+                                paramsMap[key] = value  
+                        }
+                    }
+                    
+                    // Add environment variables
+                    paramsMap['project_id'] = env.PROJECT_ID 
+                    paramsMap['subnetwork_project'] = env.SUBNETWORK_PROJECT
+                    paramsMap['source_image_name'] = env.SOURCE_IMAGE_NAME
+                    paramsMap['source_image_project'] = env.SOURCE_IMAGE_PROJECT
+                    paramsMap['gce_ssh_user'] = env.SSH_USER
+                    paramsMap['gce_ssh_pub_key_file'] = env.GCE_SSH_PUB_KEY_FILE
+
+                    paramsMap['sap_nw_ascs_boot_disk_size'] = env.SAP_NW_ASCS_BOOT_DISK_SIZE
+                    paramsMap['sap_nw_ascs_boot_disk_type'] = env.SAP_NW_ASCS_BOOT_DISK_TYPE
+                    paramsMap['sap_nw_ascs_autodelete_boot_disk'] = env.SAP_NW_AUTODELETE_BOOT_DISK ? env.SAP_NW_AUTODELETE_BOOT_DISK : true
+                    paramsMap['sap_nw_ascs_usrsap_disk_size'] = env.SAP_NW_ASCS_USRSAP_DISK_SIZE
+                    paramsMap['sap_nw_ascs_usrsap_disk_type'] = env.SAP_NW_ASCS_USRSAP_DISK_TYPE
+                    paramsMap['sap_nw_ascs_swap_disk_size'] = env.SAP_NW_ASCS_SWAP_DISK_SIZE
+                    paramsMap['sap_nw_ascs_swap_disk_type'] = env.SAP_NW_ASCS_SWAP_DISK_TYPE
+                    paramsMap['sap_nw_ascs_service_account_email'] = env.SAP_NW_SERVICE_ACCOUNT_EMAIL
+                    paramsMap['sap_nw_ascs_network_tags'] = [env.SAP_NW_NETWORK_TAGS]
+                    paramsMap['sap_nw_ascs_pd_kms_key'] = env.SAP_NW_PD_KMS_KEY
+                    paramsMap['sap_nw_ascs_create_instance_group'] = env.SAP_NW_ASCS_CREATE_INSTANCE_GROUP
+                    paramsMap['sap_nw_ascs_instance_group_name'] = env.SAP_NW_ASCS_INSTANCE_GROUP_NAME
+
+                    paramsMap['sap_nw_ers_boot_disk_size'] = env.SAP_NW_ERS_BOOT_DISK_SIZE
+                    paramsMap['sap_nw_ers_boot_disk_type'] = env.SAP_NW_ERS_BOOT_DISK_TYPE
+                    paramsMap['sap_nw_ers_autodelete_boot_disk'] = env.SAP_NW_AUTODELETE_BOOT_DISK ? env.SAP_NW_AUTODELETE_BOOT_DISK : true
+                    paramsMap['sap_nw_ers_usrsap_disk_size'] = env.SAP_NW_ERS_USRSAP_DISK_SIZE
+                    paramsMap['sap_nw_ers_usrsap_disk_type'] = env.SAP_NW_ERS_USRSAP_DISK_TYPE
+                    paramsMap['sap_nw_ers_swap_disk_size'] = env.SAP_NW_ERS_SWAP_DISK_SIZE
+                    paramsMap['sap_nw_ers_swap_disk_type'] = env.SAP_NW_ERS_SWAP_DISK_TYPE
+                    paramsMap['sap_nw_ers_service_account_email'] = env.SAP_NW_SERVICE_ACCOUNT_EMAIL
+                    paramsMap['sap_nw_ers_network_tags'] = [env.SAP_NW_NETWORK_TAGS]
+                    paramsMap['sap_nw_ers_pd_kms_key'] = env.SAP_NW_PD_KMS_KEY
+                    paramsMap['sap_nw_ers_create_instance_group'] = env.SAP_NW_ERS_CREATE_INSTANCE_GROUP
+                    paramsMap['sap_nw_ers_instance_group_name'] = env.SAP_NW_ERS_INSTANCE_GROUP_NAME
+
+                    paramsMap['sap_nw_pas_boot_disk_size'] = env.SAP_NW_PAS_BOOT_DISK_SIZE
+                    paramsMap['sap_nw_pas_boot_disk_type'] = env.SAP_NW_PAS_BOOT_DISK_TYPE
+                    paramsMap['sap_nw_pas_autodelete_boot_disk'] = env.SAP_NW_AUTODELETE_BOOT_DISK ? env.SAP_NW_AUTODELETE_BOOT_DISK : true
+                    paramsMap['sap_nw_pas_usrsap_disk_size'] = env.SAP_NW_PAS_USRSAP_DISK_SIZE
+                    paramsMap['sap_nw_pas_usrsap_disk_type'] = env.SAP_NW_PAS_USRSAP_DISK_TYPE
+                    paramsMap['sap_nw_pas_swap_disk_size'] = env.SAP_NW_PAS_SWAP_DISK_SIZE
+                    paramsMap['sap_nw_pas_swap_disk_type'] = env.SAP_NW_PAS_SWAP_DISK_TYPE
+                    paramsMap['sap_nw_pas_service_account_email'] = env.SAP_NW_SERVICE_ACCOUNT_EMAIL
+                    paramsMap['sap_nw_pas_network_tags'] = [env.SAP_NW_NETWORK_TAGS]
+                    paramsMap['sap_nw_pas_pd_kms_key'] = env.SAP_NW_PD_KMS_KEY
+                    paramsMap['sap_nw_pas_create_instance_group'] = env.SAP_NW_PAS_CREATE_INSTANCE_GROUP
+                    paramsMap['sap_nw_pas_instance_group_name'] = env.SAP_NW_PAS_INSTANCE_GROUP_NAME 
+
+                    paramsMap['network_project'] = env.SAP_NETWORK_PROJECT_ID
+                    paramsMap['sap_nw_ascs_health_check_port'] = env.SAP_NW_ASCS_HEALTH_CHECK_PORT
+                    paramsMap['sap_nw_ascs_health_check_port_name'] = env.SAP_NW_ASCS_HEALTH_CHECK_PORT_NAME
+                    paramsMap['sap_nw_ascs_health_check_name'] = env.SAP_NW_ASCS_HEALTH_CHECK_NAME
+                    paramsMap['sap_nw_ascs_backend_service_name'] = env.SAP_NW_ASCS_BACKEND_SERVICE_NAME
+                    paramsMap['sap_nw_ers_health_check_port'] = env.SAP_NW_ERS_HEALTH_CHECK_PORT
+                    paramsMap['sap_nw_ers_health_check_port_name'] = env.SAP_NW_ERS_HEALTH_CHECK_PORT_NAME
+                    paramsMap['sap_nw_ers_health_check_name'] = env.SAP_NW_ERS_HEALTH_CHECK_NAME
+                    paramsMap['sap_nw_ers_backend_service_name'] = env.SAP_NW_ERS_BACKEND_SERVICE_NAME
+
+                    writeFile file: "${env.TF_FOLDER}/terraform.tfvars.json", text: JsonOutput.prettyPrint(JsonOutput.toJson(paramsMap)) 
+                }
+            }
+        }
+
+
+        stage('Terraform Plan and Approve') {
+            steps {
+                script {
+                    def bucketId = "${env.TERRAFORM_BUCKET_ID}"
+                    def prefixId = "${env.TERRAFORM_PREFIX_ID}"
+
+                    if (!bucketId || !prefixId) {
+                        error "Bucket and prefix ID not found for ${TF_FOLDER}"
+                    }
+
+                    echo "Executing Terraform init and plan in ${TF_FOLDER} with backend bucket=${bucketId}, prefix=${prefixId}"
+
+                    withCredentials([file(credentialsId: 'gcp-key-new', variable: 'GOOGLE_APPLICATION_CREDENTIALS')]) {
+                    dir("${TF_FOLDER}") {
+                                        sh "cat terraform.tfvars.json"
+
+                                        sh """
+                                            terraform init \\
+                                                -backend-config="bucket=${bucketId}" \\
+                                                -backend-config="prefix=${prefixId}" \\
+                                                -reconfigure
+                                        """
+
+                                        // Capture Terraform plan output into a file
+                                        sh "terraform plan -var-file=terraform.tfvars.json -compact-warnings | tee terraform-plan.log"
+
+                                        
+                        }
+                    
+                    def approverEmail = 'mayuri.ym94@gmail.com'
+                    def subject = "Approval Required: Terraform Execution"
+                    def logFilePath = "${TF_FOLDER}/terraform-plan.log"
+
+                    // Read Terraform Plan Output and truncate if too long
+                    def planOutput = readFile(logFilePath)
+
+                    def body = """
+                        <p>Terraform execution is requested. Please review and approve or reject.</p>
+                        
+                        <p><b>Job:</b> ${env.JOB_NAME}<br>
+                        <b>Build Number:</b> ${env.BUILD_NUMBER}<br>
+                        <b>URL:</b> <a href="${env.BUILD_URL}">${env.BUILD_URL}</a></p>
+
+                        <p><b>Terraform Plan Output (truncated):</b></p>
+                        <pre>${planOutput}</pre>
+
+                        <p><b>Approval Options:</b></p>
+                        <ul>
+                            <li><a href="${env.BUILD_URL}/input">✅ Approve Job</a></li>
+                            <li><a href="${env.BUILD_URL}/abort">❌ Reject Job</a></li>
+                        </ul>
+                    """
+
+                    mail(
+                        to: approverEmail,
+                        subject: subject,
+                        body: body,
+                        mimeType: 'text/html'
+                    )
+                }
+
+
+                input message: "Do you want to proceed with Terraform Configuration Deployment?", ok: "Proceed"
+
+                    withCredentials([file(credentialsId: 'gcp-key-new', variable: 'GOOGLE_APPLICATION_CREDENTIALS')]) {
+                        dir("${TF_FOLDER}") {
+                            sh "terraform apply -auto-approve -var-file=\"terraform.tfvars.json\""
+                        }
+                    }
+
+                    sh """
+                        echo "Fetching Terraform state file from GCS..."
+                        gsutil cat gs://${env.TERRAFORM_BUCKET_ID}/${env.TERRAFORM_PREFIX_ID}/default.tfstate
+                    """
+                }
+            }
+        }
+
+
+        stage('Prepare Host Inventory') {
+            steps {
+                script {
+                    dir("${TF_FOLDER}") {
+                            echo "Extracting Terraform output for ${TF_FOLDER}"
+
+                            // Get Terraform JSON output
+                            def terraformOutput = sh(script: 'terraform output -json', returnStdout: true).trim()
+                            def jsonOutput = readJSON(text: terraformOutput)
+                            // Extracting values properly
+                            def inventoryList = jsonOutput.inventory?.value ?: []
+                            def ascsInstanceUrls = jsonOutput.ascs_instance_name?.value ?: []
+                            def ersInstanceUrls = jsonOutput.ers_instance_name?.value ?: []
+                            def pasInstanceUrls = jsonOutput.pas_instance_name?.value ?: []
+
+                            if (inventoryList.isEmpty() || (ascsInstanceUrls.isEmpty() && ersInstanceUrls.isEmpty() && pasInstanceUrls.isEmpty())) {
+                                error "Error: Required Terraform outputs are missing"
+                            }
+
+                            def hostInfoMap = [:]
+                            inventoryList.each { item ->
+                                def ip = item.host
+                                def isASCS = item.vars["sap_is_ascs"] == true
+                                def isERS = item.vars["sap_is_ers"] == true
+                                def isSCS = item.vars["sap_is_scs"] == true
+                                def isPAS = item.vars["sap_is_pas"] == true
+                                def instanceName
+                                if (isASCS && isSCS) {
+                                    instanceName = ascsInstanceUrls[0].tokenize('/').last()
+                                    hostInfoMap[ip] = [instanceName: instanceName, isASCS: isASCS, isSCS: isSCS]
+                                } 
+                                if (isERS && isSCS) {
+                                    instanceName = ersInstanceUrls[0].tokenize('/').last()
+                                    hostInfoMap[ip] = (hostInfoMap.containsKey(ip) ? hostInfoMap[ip] + [isERS: isERS, isSCS: isSCS] : [instanceName: instanceName, isERS: isERS, isSCS: isSCS])
+                                }
+                                if (isPAS) {
+                                    instanceName = pasInstanceUrls[0].tokenize('/').last()
+                                    hostInfoMap[ip] = (hostInfoMap.containsKey(ip) ? hostInfoMap[ip] + [isPAS: isPAS] : [instanceName: instanceName, isPAS: isPAS])
+                                }                    
+                            }
+
+                            def groupName = inventoryList[0]?.groups[0] ?: "nw"
+                            def yamlContent = "all:\n  children:\n    ${groupName}:\n      hosts:\n"
+
+                            hostInfoMap.each { ip, hostInfo ->
+                            // Use the stored isPrimary value for the current host
+                                if (hostInfo.isASCS && hostInfo.isSCS) {
+                                    yamlContent += "        ${ip}:\n          instance_name: ${hostInfo.instanceName}\n          sap_is_ascs: ${hostInfo.isASCS}\n          sap_is_scs: ${hostInfo.isSCS}\n"     
+                                } 
+                                if (hostInfo.isERS && hostInfo.isSCS) {
+                                    yamlContent += "        ${ip}:\n          instance_name: ${hostInfo.instanceName}\n          sap_is_ers: ${hostInfo.isERS}\n          sap_is_scs: ${hostInfo.isSCS}\n"     
+                                } 
+                                if (hostInfo.isPAS) {
+                                    yamlContent += "        ${ip}:\n          instance_name: ${hostInfo.instanceName}\n          sap_is_pas: ${hostInfo.isPAS}\n"
+                                }       
+                            }
+
+                            def yamlFilePath = "${env.WORKSPACE}/${env.ANSIBLE_FOLDER}/inventory.yml"
+                            writeFile file: yamlFilePath, text: yamlContent
+
+                            echo "Inventory YAML file created at ${yamlFilePath}"
+                        }
+                    }
+                }
+        }
+
+        stage('Prepare Ansible Input Vars File') {
+            steps {
+                script {
+
+                    input message: "Do you want to proceed with Ansible Execution?", ok: "Proceed"
+
+                    def yamlContent = """
+                        sap_project_id: ${env.PROJECT_ID}
+                        sap_nw_ascs_instance_name: "${params.sap_nw_ascs_instance_name}"
+                        sap_nw_ers_instance_name: "${params.sap_nw_ers_instance_name}"
+                        sap_nw_pas_instance_name: "${params.sap_nw_pas_instance_name}"
+                        sap_nw_pas_alias_ip: "${params.sap_nw_pas_alias_ip}"
+                        sap_hana_ilb_ip: "${env.sap_hana_ilb_ip}"
+                        sap_nw_ascs_ilb_ip_address: "${params.sap_nw_ascs_ilb_ip_address}"
+                        sap_nw_ers_ilb_ip_address: "${params.sap_nw_ers_ilb_ip_address}"
+                        sap_nw_pas_alias_ip: "${params.sap_nw_pas_alias_ip}"
+                        sap_nw_ascs_health_check_port: "${env.SAP_NW_ASCS_HEALTH_CHECK_PORT}"
+                        sap_nw_ers_health_check_port: "${env.SAP_NW_ERS_HEALTH_CHECK_PORT}"
+                        sap_primary_zone: "${params.primary_zone}"
+                        sap_secondary_zone: "${params.secondary_zone}"
+                        sap_hana_virtual_host: "${env.sap_hana_virtual_host}"
+                        sap_nw_ascs_virtual_host: ${env.sap_nw_ascs_virtual_host}
+                        sap_nw_ers_virtual_host:  ${env.sap_nw_ers_virtual_host}
+                        sap_nw_pas_virtual_host:  ${env.sap_nw_pas_virtual_host}
+                        sap_host_fqdn: "${env.sap_host_fqdn}"
+                        sap_nw_sidadm_uid: ${env.sap_nw_sidadm_uid}
+                        sap_nw_sapadm_uid: ${env.sap_nw_sapadm_uid}
+                        sap_sapsys_gid: ${env.sap_sapsys_gid}
+                        sap_nw_install_files_bucket: ${env.sap_nw_install_files_bucket}
+                        sap_nw_nfs_src: ${params.sap_nw_nfs_src}
+                        sap_nw_create_nfs_source_dirs: ${env.sap_nw_create_nfs_source_dirs}
+                        sap_nw_sid: ${params.sap_nw_sid} 
+                        sap_hana_sid: ${params.sap_hana_sid} 
+                        sap_hana_instance_number: "${params.sap_hana_instance_number}"
+                        sap_nw_ascs_instance_number: "${params.sap_nw_ascs_instance_number}"
+                        sap_nw_ers_instance_number: "${params.sap_nw_ers_instance_number}"
+                        sap_nw_pas_instance_number: "${params.sap_nw_pas_instance_number}"
+                        sap_nw_ascs_install_web_dispatcher: ${env.sap_nw_ascs_install_web_dispatcher}
+                        sap_nw_product_and_version: ${env.sap_nw_product_and_version}
+                        sap_nw_password: "${env.sap_nw_password}"
+                        sap_hana_password: "${env.sap_hana_password}"
+                    """.stripIndent()
+                    
+                    sh "mkdir -p ${env.ANSIBLE_FOLDER}/vars"
+
+                    writeFile file: "${env.ANSIBLE_FOLDER}/vars/deploy-vars.yml", text: yamlContent
+
+                }
+            }
+        }
+
+        stage('Wait for SSH Connection to All Hosts') {
+            steps {
+                script {
+                            def connectedHosts = [] as Set  // Use a Set to avoid duplicates
+                            def retryCount = 0
+                            def maxRetries = 5  // Maximum retry attempts
+                            def retryDelay = 40 // Delay between retries (seconds)
+
+                            // Read the inventory.yml file as YAML
+                            def inventoryData = readYaml file: "${env.ANSIBLE_FOLDER}/inventory.yml"
+                            def inventoryHosts = []
+
+                            // Navigate through YAML to extract host IPs
+                            if (inventoryData?.all?.children?.nw?.hosts) {
+                                inventoryHosts = inventoryData.all.children.nw.hosts.keySet().toList()
+                            } else {
+                                error "No hosts found in inventory.yml!"
+                            }
+
+                            echo "Hosts from inventory: ${inventoryHosts}"
+
+                            def sshUser = env.SSH_USER
+                            echo "Using SSH User: ${sshUser}"
+
+                            while (connectedHosts.size() < inventoryHosts.size() && retryCount < maxRetries) {
+                                def remainingHosts = inventoryHosts - connectedHosts  // Hosts that still need checking
+
+                                for (host in remainingHosts) {
+                                    echo "Attempting SSH connection to ${sshUser}@${host}, try #${retryCount + 1}"
+                                    def result = sh(script: "ssh -o StrictHostKeyChecking=no -o ConnectTimeout=10 ${sshUser}@${host} 'exit'", returnStatus: true)
+
+                                    if (result == 0) {
+                                        echo "SSH connection successful for ${host}"
+                                        connectedHosts.add(host)
+                                    } else {
+                                        echo "SSH connection failed for ${host}. Moving to the next host..."
+                                    }
+                                }
+
+                                retryCount++
+                                if (connectedHosts.size() < inventoryHosts.size() && retryCount < maxRetries) {
+                                    sleep(retryDelay)
+                                }
+                            }
+
+                            // Fail if any hosts remain unreachable
+                            if (connectedHosts.size() < inventoryHosts.size()) {
+                                error "Failed to connect to some hosts after ${maxRetries} attempts: ${(inventoryHosts - connectedHosts)}"
+                            } else {
+                                echo "All hosts are reachable. Proceeding with Ansible playbook execution."
+                            }
+                        }
+            }
+        }
+
+        
+        stage("Execute Ansible"){
+            steps {
+                script {
+                    // Send mail for ansible execution
+                    def teamEmail = 'mayuri.ym94@gmail.com'
+                    def subject_exe = "Initiation of NetWeaver-HA deployment"
+
+                    def body_exe = """
+                        <html>
+                        <body>
+                            <p>Dear Team,</p>
+                            <p>The deployment of <strong>NetWeaver-HA system</strong> in the <strong>Development</strong> environment has been initiated from the Jenkins UI. Please find the build information below:</p>
+
+                            <ul>
+                                <li><strong>Job:</strong> ${env.JOB_NAME}</li>
+                                <li><strong>Build Number:</strong> ${env.BUILD_NUMBER}</li>
+                                <li><strong>Build URL:</strong> <a href="${env.BUILD_URL}">${env.BUILD_URL}</a></li>
+                            </ul>
+
+                            <p>Regards,</p>
+                        </body>
+                        </html>
+                    """
+
+                    mail(
+                        to: teamEmail,
+                        subject: subject_exe,
+                        body: body_exe,
+                        mimeType: 'text/html'
+                    )
+                    dir("${ANSIBLE_FOLDER}") {
+
+                            ansiblePlaybook(
+                                disableHostKeyChecking: true,
+                                installation: 'Ansible',
+                                inventory: "inventory.yml",
+                                playbook: "playbook.yml",
+                                extras: "-e @vars/${deployvars_filename}",
+                                extraVars: [
+                                    "ansible_ssh_private_key_file": ANSIBLE_PRIVATE_KEY,
+                                    "ansible_user": SSH_USER
+                                ]
+                            )
+                    }
+
+                    def yamlContent = """
+                        sap_project_id: ${env.PROJECT_ID}
+                        sap_nw_ascs_instance_name: "${params.sap_nw_ascs_instance_name}"
+                        sap_nw_ers_instance_name: "${params.sap_nw_ers_instance_name}"
+                        sap_nw_pas_instance_name: "${params.sap_nw_pas_instance_name}"
+                        sap_nw_pas_alias_ip: "${params.sap_nw_pas_alias_ip}"
+                        sap_hana_ilb_ip: "${env.sap_hana_ilb_ip}"
+                        sap_nw_ascs_ilb_ip_address: "${params.sap_nw_ascs_ilb_ip_address}"
+                        sap_nw_ers_ilb_ip_address: "${params.sap_nw_ers_ilb_ip_address}"
+                        sap_nw_pas_alias_ip: "${params.sap_nw_pas_alias_ip}"
+                        sap_nw_ascs_health_check_port: "${env.SAP_NW_ASCS_HEALTH_CHECK_PORT}"
+                        sap_nw_ers_health_check_port: "${env.SAP_NW_ERS_HEALTH_CHECK_PORT}"
+                        sap_primary_zone: "${params.primary_zone}"
+                        sap_secondary_zone: "${params.secondary_zone}"
+                        sap_hana_virtual_host: "${env.sap_hana_virtual_host}"
+                        sap_nw_ascs_virtual_host: ${env.sap_nw_ascs_virtual_host}
+                        sap_nw_ers_virtual_host:  ${env.sap_nw_ers_virtual_host}
+                        sap_nw_pas_virtual_host:  ${env.sap_nw_pas_virtual_host}
+                        sap_host_fqdn: "${env.sap_host_fqdn}"
+                        sap_nw_sidadm_uid: ${env.sap_nw_sidadm_uid}
+                        sap_nw_sapadm_uid: ${env.sap_nw_sapadm_uid}
+                        sap_sapsys_gid: ${env.sap_sapsys_gid}
+                        sap_nw_install_files_bucket: ${env.sap_nw_install_files_bucket}
+                        sap_nw_nfs_src: ${params.sap_nw_nfs_src}
+                        sap_nw_create_nfs_source_dirs: ${env.sap_nw_create_nfs_source_dirs}
+                        sap_nw_sid: ${params.sap_nw_sid} 
+                        sap_hana_sid: ${params.sap_hana_sid} 
+                        sap_hana_instance_number: "${params.sap_hana_instance_number}"
+                        sap_nw_ascs_instance_number: "${params.sap_nw_ascs_instance_number}"
+                        sap_nw_ers_instance_number: "${params.sap_nw_ers_instance_number}"
+                        sap_nw_pas_instance_number: "${params.sap_nw_pas_instance_number}"
+                        sap_nw_ascs_install_web_dispatcher: ${env.sap_nw_ascs_install_web_dispatcher}
+                        sap_nw_product_and_version: ${env.sap_nw_product_and_version}
+                    """.stripIndent()   
+
+                    writeFile file: "${env.ANSIBLE_FOLDER}/vars/deploy-vars.yml", text: yamlContent
+
+                    // Send mail for successful deployment
+                    def subject_cmp = "NetWeaver-HA Deployment Successfully Completed in Development environment"
+
+                    def body_cmp= """
+                        <html>
+                        <body>
+                            <p>Dear Team,</p>
+
+                            <p>The deployment of NetWeaver-HA system has been successfully completed. Below are the details of the newly created instance:</p>
+
+                            <table cellspacing="0" cellpadding="5" border="1" style="border-collapse: collapse;">
+                                <tr><th align="left">ASCS Instance Name</th><td>${params.sap_nw_ascs_instance_name}</td></tr>
+                                <tr><th align="left">Zone</th><td>${params.primary_zone}</td></tr>
+                                <tr><th align="left">Private IP Address</th><td>${params.sap_nw_ascs_instance_ip}</td></tr>
+                            </table>
+                            <br/>
+
+                            <table cellspacing="0" cellpadding="5" border="1" style="border-collapse: collapse;">
+                                <tr><th align="left">ERS Instance Name</th><td>${params.sap_nw_ers_instance_name}</td></tr>
+                                <tr><th align="left">Zone</th><td>${params.secondary_zone}</td></tr>
+                                <tr><th align="left">Private IP Address</th><td>${params.sap_nw_ers_instance_ip}</td></tr>
+                            </table>
+                            <br/>
+
+                            <table cellspacing="0" cellpadding="5" border="1" style="border-collapse: collapse;">
+                                <tr><th align="left">PAS Instance Name</th><td>${params.sap_nw_pas_instance_name}</td></tr>
+                                <tr><th align="left">Zone</th><td>${params.primary_zone}</td></tr>
+                                <tr><th align="left">Private IP Address</th><td>${params.sap_nw_pas_instance_ip}</td></tr>
+                            </table>
+                            <br/>
+
+                            <p><strong>Build Information:</strong></p>
+                            <ul>
+                                <li><strong>Job:</strong> ${env.JOB_NAME}</li>
+                                <li><strong>Build Number:</strong> ${env.BUILD_NUMBER}</li>
+                                <li><strong>Build URL:</strong> <a href="${env.BUILD_URL}">${env.BUILD_URL}</a></li>
+                            </ul>
+
+                            <p>Best regards</p>
+                        </body>
+                        </html>
+                    """
+
+                    mail(
+                        to: teamEmail,
+                        subject: subject_cmp,
+                        body: body_cmp,
+                        mimeType: 'text/html'
+                    )
+                }
+            }
+        }
+
+
+        stage('Update TF variable file to remove the Password') {
+            steps {
+                script {
+                    def paramsMap = [:]
+
+                    def ascsNamedPortList = []
+                    def ascsPortNamesList = env.SAP_NW_ASCS_HEALTH_CHECK_PORT_NAME?.trim()
+                    def ascsPortValuesList = env.SAP_NW_ASCS_HEALTH_CHECK_PORT?.trim()
+                    def ascsPortNames = ascsPortNamesList.split(',').collect { it.trim() }
+                    def ascsPortValues = ascsPortValuesList.split(',').collect { it.trim() }
+                    for (int i = 0; i < ascsPortNames.size(); i++) {
+                        def ascsNamedPortMap = [
+                            name: ascsPortNames[i],
+                            port: ascsPortValues[i]
+                        ]
+                        ascsNamedPortList << ascsNamedPortMap
+                    }
+                    paramsMap['sap_nw_ascs_named_ports'] = ascsNamedPortList
+
+
+                    def ersNamedPortList = []
+                    def ersPortNamesList = env.SAP_NW_ERS_HEALTH_CHECK_PORT_NAME?.trim()
+                    def ersPortValuesList = env.SAP_NW_ERS_HEALTH_CHECK_PORT?.trim()
+                    def ersPortNames = ersPortNamesList.split(',').collect { it.trim() }
+                    def ersPortValues = ersPortValuesList.split(',').collect { it.trim() }
+                    for (int i = 0; i < ersPortNames.size(); i++) {
+                        def ersNamedPortMap = [
+                            name: ersPortNames[i],
+                            port: ersPortValues[i]
+                        ]
+                        ersNamedPortList << ersNamedPortMap
+                    }
+                    paramsMap['sap_nw_ers_named_ports'] = ersNamedPortList
+                    
+                    params.each { key, value ->
+                        switch (key) {
+                            case 'sap_nw_ascs_labels':
+                            case 'sap_nw_ers_labels':
+                            case 'sap_nw_pas_labels':
+                                try {
+                                    paramsMap[key] = readJSON(text: value)
+                                } catch (Exception e) {
+                                    error("Invalid JSON format for ${key}: ${value}")
+                                }
+                                break
+
+                            default:
+                                paramsMap[key] = value  
+                        }
+                    }
+                    
+                    // Add environment variables
+                    paramsMap['project_id'] = env.PROJECT_ID 
+                    paramsMap['subnetwork_project'] = env.SUBNETWORK_PROJECT
+                    paramsMap['source_image_name'] = env.SOURCE_IMAGE_NAME
+                    paramsMap['source_image_project'] = env.SOURCE_IMAGE_PROJECT
+                    paramsMap['gce_ssh_user'] = env.SSH_USER
+                    paramsMap['gce_ssh_pub_key_file'] = env.GCE_SSH_PUB_KEY_FILE
+
+                    paramsMap['sap_nw_ascs_boot_disk_size'] = env.SAP_NW_ASCS_BOOT_DISK_SIZE
+                    paramsMap['sap_nw_ascs_boot_disk_type'] = env.SAP_NW_ASCS_BOOT_DISK_TYPE
+                    paramsMap['sap_nw_ascs_autodelete_boot_disk'] = env.SAP_NW_AUTODELETE_BOOT_DISK ? env.SAP_NW_AUTODELETE_BOOT_DISK : true
+                    paramsMap['sap_nw_ascs_usrsap_disk_size'] = env.SAP_NW_ASCS_USRSAP_DISK_SIZE
+                    paramsMap['sap_nw_ascs_usrsap_disk_type'] = env.SAP_NW_ASCS_USRSAP_DISK_TYPE
+                    paramsMap['sap_nw_ascs_swap_disk_size'] = env.SAP_NW_ASCS_SWAP_DISK_SIZE
+                    paramsMap['sap_nw_ascs_swap_disk_type'] = env.SAP_NW_ASCS_SWAP_DISK_TYPE
+                    paramsMap['sap_nw_ascs_service_account_email'] = env.SAP_NW_SERVICE_ACCOUNT_EMAIL
+                    paramsMap['sap_nw_ascs_network_tags'] = [env.SAP_NW_NETWORK_TAGS]
+                    paramsMap['sap_nw_ascs_pd_kms_key'] = env.SAP_NW_PD_KMS_KEY
+                    paramsMap['sap_nw_ascs_create_instance_group'] = env.SAP_NW_ASCS_CREATE_INSTANCE_GROUP
+                    paramsMap['sap_nw_ascs_instance_group_name'] = env.SAP_NW_ASCS_INSTANCE_GROUP_NAME
+
+                    paramsMap['sap_nw_ers_boot_disk_size'] = env.SAP_NW_ERS_BOOT_DISK_SIZE
+                    paramsMap['sap_nw_ers_boot_disk_type'] = env.SAP_NW_ERS_BOOT_DISK_TYPE
+                    paramsMap['sap_nw_ers_autodelete_boot_disk'] = env.SAP_NW_AUTODELETE_BOOT_DISK ? env.SAP_NW_AUTODELETE_BOOT_DISK : true
+                    paramsMap['sap_nw_ers_usrsap_disk_size'] = env.SAP_NW_ERS_USRSAP_DISK_SIZE
+                    paramsMap['sap_nw_ers_usrsap_disk_type'] = env.SAP_NW_ERS_USRSAP_DISK_TYPE
+                    paramsMap['sap_nw_ers_swap_disk_size'] = env.SAP_NW_ERS_SWAP_DISK_SIZE
+                    paramsMap['sap_nw_ers_swap_disk_type'] = env.SAP_NW_ERS_SWAP_DISK_TYPE
+                    paramsMap['sap_nw_ers_service_account_email'] = env.SAP_NW_SERVICE_ACCOUNT_EMAIL
+                    paramsMap['sap_nw_ers_network_tags'] = [env.SAP_NW_NETWORK_TAGS]
+                    paramsMap['sap_nw_ers_pd_kms_key'] = env.SAP_NW_PD_KMS_KEY
+                    paramsMap['sap_nw_ers_create_instance_group'] = env.SAP_NW_ERS_CREATE_INSTANCE_GROUP
+                    paramsMap['sap_nw_ers_instance_group_name'] = env.SAP_NW_ERS_INSTANCE_GROUP_NAME
+
+                    paramsMap['sap_nw_pas_boot_disk_size'] = env.SAP_NW_PAS_BOOT_DISK_SIZE
+                    paramsMap['sap_nw_pas_boot_disk_type'] = env.SAP_NW_PAS_BOOT_DISK_TYPE
+                    paramsMap['sap_nw_pas_autodelete_boot_disk'] = env.SAP_NW_AUTODELETE_BOOT_DISK ? env.SAP_NW_AUTODELETE_BOOT_DISK : true
+                    paramsMap['sap_nw_pas_usrsap_disk_size'] = env.SAP_NW_PAS_USRSAP_DISK_SIZE
+                    paramsMap['sap_nw_pas_usrsap_disk_type'] = env.SAP_NW_PAS_USRSAP_DISK_TYPE
+                    paramsMap['sap_nw_pas_swap_disk_size'] = env.SAP_NW_PAS_SWAP_DISK_SIZE
+                    paramsMap['sap_nw_pas_swap_disk_type'] = env.SAP_NW_PAS_SWAP_DISK_TYPE
+                    paramsMap['sap_nw_pas_service_account_email'] = env.SAP_NW_SERVICE_ACCOUNT_EMAIL
+                    paramsMap['sap_nw_pas_network_tags'] = [env.SAP_NW_NETWORK_TAGS]
+                    paramsMap['sap_nw_pas_pd_kms_key'] = env.SAP_NW_PD_KMS_KEY
+                    paramsMap['sap_nw_pas_create_instance_group'] = env.SAP_NW_PAS_CREATE_INSTANCE_GROUP
+                    paramsMap['sap_nw_pas_instance_group_name'] = env.SAP_NW_PAS_INSTANCE_GROUP_NAME 
+
+                    paramsMap['network_project'] = env.SAP_NETWORK_PROJECT_ID
+                    paramsMap['sap_nw_ascs_health_check_port'] = env.SAP_NW_ASCS_HEALTH_CHECK_PORT
+                    paramsMap['sap_nw_ascs_health_check_port_name'] = env.SAP_NW_ASCS_HEALTH_CHECK_PORT_NAME
+                    paramsMap['sap_nw_ascs_health_check_name'] = env.SAP_NW_ASCS_HEALTH_CHECK_NAME
+                    paramsMap['sap_nw_ascs_backend_service_name'] = env.SAP_NW_ASCS_BACKEND_SERVICE_NAME
+                    paramsMap['sap_nw_ers_health_check_port'] = env.SAP_NW_ERS_HEALTH_CHECK_PORT
+                    paramsMap['sap_nw_ers_health_check_port_name'] = env.SAP_NW_ERS_HEALTH_CHECK_PORT_NAME
+                    paramsMap['sap_nw_ers_health_check_name'] = env.SAP_NW_ERS_HEALTH_CHECK_NAME
+                    paramsMap['sap_nw_ers_backend_service_name'] = env.SAP_NW_ERS_BACKEND_SERVICE_NAME
+
+                    writeFile file: "${env.TF_FOLDER}/terraform.tfvars.json", text: JsonOutput.prettyPrint(JsonOutput.toJson(paramsMap)) 
+                }
+            }
+        }
+
+
+        stage('Add the files to Git Repository') {
+            steps {
+                script {
+                    withCredentials([string(credentialsId: 'github-key-new', variable: 'GIT_SECRET')]) {
+                        def timestamp = new Date().format("yyyyMMddHHmmss")
+                        def git_folder_name = "${params.sap_nw_sid}_${timestamp}"
+                        def target_folder = "${env.GIT_FOLDER}/${git_folder_name}"
+                        def tfvarsFile = "${env.TF_FOLDER}/terraform.tfvars.json"
+                        def inventoryFile = "${env.ANSIBLE_FOLDER}/inventory.yml"
+                        def deployvarsFile = "${env.ANSIBLE_FOLDER}/vars/deploy-vars.yml"
+
+                        sh """
+                            mkdir -p ${target_folder}
+                            cp ${tfvarsFile} ${target_folder}/terraform.tfvars.json
+                            cp ${inventoryFile} ${target_folder}/inventory.yml
+                            cp ${deployvarsFile} ${target_folder}/deploy-vars.yml
+
+                            git config user.name "${GIT_USER_NAME}"
+                            git config user.email "${GIT_USER_EMAIL}"
+
+                            git add ${target_folder}
+                            git commit -m "Add deployment files for ${git_folder_name}" || echo 'No changes to commit'
+                            git push https://${GIT_USER_NAME}:${GIT_SECRET}@${GIT_REPO_URL} HEAD:main
+                        """
+                    }
+                }
+            }
+        }
+    }
+
+    post {
+                // Clean after build
+                always {
+                    cleanWs(cleanWhenNotBuilt: false,
+                            deleteDirs: true,
+                            disableDeferredWipeout: true,
+                            notFailBuild: true)
+                }
+    }
+}

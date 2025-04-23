@@ -21,3 +21,7 @@ output "umig_self_link" {
 output "instance_ips" {
   value = google_compute_address.gcp_sap_nw_intip.*.address
 }
+
+output "instance_name_link" {
+  value = module.sap_nw_umig.instances_self_links
+}
