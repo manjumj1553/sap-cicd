@@ -17,3 +17,15 @@
 output "inventory" {
   value = local.inventory
 }
+
+output "ascs_instance_name" {
+  value = module.netweaver_ascs.instance_name_link
+}
+
+output "ers_instance_name" {
+  value = module.netweaver_ers.instance_name_link
+}
+
+output "pas_instance_name" {
+  value = module.netweaver_pas.instance_name_link
+}

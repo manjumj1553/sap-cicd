@@ -24,8 +24,8 @@
 
 - name: check mounts
   command: mount
-  args:
-    warn: false
+  # args:
+  #   warn: false
   register: nfs_client_mount_command
   changed_when: false
   when: nfs_client_source | length != 0
