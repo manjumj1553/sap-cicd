@@ -22,6 +22,14 @@ output "instance_ips_b" {
   value = google_compute_address.gcp_sap_nw_intip_b.*.address
 }
 
+output "instance_names_a" {
+  value = module.sap_nw_umig_a.instances_self_links
+}
+
+output "instance_names_b" {
+  value = module.sap_nw_umig_b.instances_self_links
+}
+
 output "alias_ips_a" {
   value = local.aas_alias_ip_range_a
 }

@@ -17,3 +17,11 @@
 output "inventory" {
   value = local.inventory
 }
+
+output "aas_instance_name_a" {
+  value = module.netweaver_aas.instance_names_a
+}
+
+output "aas_instance_name_b" {
+  value = module.netweaver_aas.instance_names_b
+}
