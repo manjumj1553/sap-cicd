@@ -1,0 +1,531 @@
+import groovy.json.JsonOutput
+pipeline {
+    agent any
+    
+    environment {
+        // CREDENTIALS
+        GOOGLE_APPLICATION_CREDENTIALS = credentials('gcp-key-new')
+        GIT_REPO_URL = "github.com/haprcr/sap-cicd-devops"
+        GIT_USER_EMAIL = "mahekar@google.com"
+        GIT_USER_NAME = "mahekar"
+
+        //FOLDERS
+        TF_FOLDER = "stacks/NetWeaver-Standard-AAS-Lite/tf"
+        ANSIBLE_FOLDER = "stacks/NetWeaver-Standard-AAS-Lite"
+        GIT_FOLDER = "stacks/NetWeaver-Standard-AAS-Lite/DEV"
+
+        ANSIBLE_ROLES_PATH = "${env.WORKSPACE}/ansible/roles"
+        ANSIBLE_PRIVATE_KEY = "/var/lib/jenkins/.ssh/id_rsa"
+        SSH_USER = "sarvagnya"
+        deployvars_filename = "deploy-vars.yml"
+
+        TERRAFORM_BUCKET_ID = "bucket-cicd-jenkins"
+        TERRAFORM_PREFIX_ID = "nwaas750Apr28"
+
+        PROJECT_ID = "sap-iac-test"
+        SUBNETWORK_PROJECT = "sap-iac-test"
+        SOURCE_IMAGE_NAME = "rhel-9-2-sap-v20241210"
+        SOURCE_IMAGE_PROJECT = "rhel-sap-cloud"
+
+        GCE_SSH_USER = "sarvagnya"
+        GCE_SSH_PUB_KEY_FILE = "~/.ssh/id_rsa.pub"
+
+        SAP_HANA_BACKINT_INSTALL = 'false'
+        SAP_HOST_FQDN = "paypal.com"
+        SAP_SYSTEM_TYPE = "nw"
+        SAP_NW_GSM_SECRET_ID = "hana_default_pass"
+        SAP_HANA_PASSWORD = 'Paypal12345'
+
+        SAP_NW_INSTALL_FILES_BUCKET = "sap-deployment-media"
+        SAP_NW_AAS_AUTODELETE_BOOT_DISK = 'true'
+        SAP_NW_AAS_BOOT_DISK_SIZE = "20"
+        SAP_NW_AAS_BOOT_DISK_TYPE = "pd-ssd"
+        SAP_NW_AAS_NETWORK_TAGS = "sap-allow-all"
+        SAP_NW_AAS_SERVICE_ACCOUNT_EMAIL = "811811474621-compute@developer.gserviceaccount.com"
+        SAP_NW_AAS_SWAP_DISK_SIZE = "2"
+        SAP_NW_AAS_SWAP_DISK_TYPE = "pd-ssd"
+        SAP_NW_AAS_USRSAP_DISK_SIZE = "10"
+        SAP_NW_AAS_USRSAP_DISK_TYPE = "pd-ssd"
+        SAP_NW_AAS_PD_KMS_KEY = "projects/sap-iac-test/locations/global/keyRings/paypal-ring/cryptoKeys/paypal-key"
+        SAP_NW_AAS_USE_PUBLIC_IP = 'false'
+        SAP_NW_PRODUCT_AND_VERSION = "NetWeaver/750"
+        SAP_SAPINST_NW = 'true'
+        SAP_NW_PASSWORD = 'Paypal12345'
+    }
+
+    parameters {
+      string(name: 'sap_nw_aas_instance_name', defaultValue: 'uscnwaasvm01', description: "Comma-separated list of Netweaver AAS instance names")
+      string(name: 'sap_nw_aas_instance_ip', defaultValue: '10.5.0.141', description: "Comma-separated list of Netweaver AAS instance IP")
+      choice(name: 'sap_nw_aas_instance_type', choices: ['n2-standard-4'], description: 'Machine type')
+      string(name: 'sap_nw_aas_region', defaultValue: 'us-central1', description: "SAP Deployment Region")
+      string(name: 'sap_nw_aas_zone', defaultValue: 'us-central1-a', description: "SAP Deployment Zone")
+      string(name: 'subnetwork', defaultValue: 'db-central', description: "Subnetwork for Netweaver Instance")
+      string(name: 'sap_nw_aas_labels', defaultValue: '{ app = "nw" }', description: "Instance labels (key-value pairs) for Netweaver Instance") 
+      string(name: 'sap_nw_aas_alias_ip', defaultValue: '10.5.0.35', description: "Alias IP Address for Netweaver Instance") 
+
+      string(name: 'sap_nw_ascs_instance_number', defaultValue: '42', description: "SAP NW ASCS Instance number")
+      string(name: 'sap_nw_pas_instance_number', defaultValue: '41', description: "SAP NW PAS Instance number")
+      string(name: 'sap_hana_instance_number', defaultValue: '41', description: "SAP HANA Instance number")
+
+      string(name: 'sap_nw_aas_virtual_host', defaultValue: 'uscnwaasvm01', description: "SAP Netweaver AAS Virtual Host")
+      string(name: 'sap_hana_virtual_host', defaultValue: 'uscnwhana1', description: "SAP HANA Virtual Host")
+      string(name: 'sap_hana_virtual_ip', defaultValue: '10.5.0.109', description: "IP Address of SAP HANA Virtual Host")
+      string(name: 'sap_nw_ascs_alias_ip', defaultValue: '10.5.0.110', description: "Alias IP Address of SAP Netweaver ASCS Instance")
+      string(name: 'sap_nw_ascs_virtual_host', defaultValue: 'uscnwstd1', description: "SAP Netweaver ASCS Virtual Host")
+      string(name: 'sap_nw_pas_alias_ip', defaultValue: '10.5.0.110', description: "Alias IP Address of SAP Netweaver PAS Instance")
+      string(name: 'sap_nw_pas_virtual_host', defaultValue: 'uscnwstd1', description: "SAP Netweaver PAS Virtual Host")
+
+      string(name: 'sapmnt_nfs_server_path', defaultValue: '10.167.224.4:/paypalvol1/CID', description: "SAPMNT NFS path") 
+      string(name: 'sap_nw_sid', defaultValue: 'STY', description: "SAP Netweaver SID") 
+      string(name: 'sap_hana_sid', defaultValue: 'STY', description: "SAP HANA SID") 
+      string(name: 'sap_nw_daaadm_uid', defaultValue: '98', description: "SAP DAAADM UID") 
+      string(name: 'sap_nw_sidadm_uid', defaultValue: '2000', description: "SAP NW SIDADM UID")   
+      string(name: 'sap_nw_sapadm_uid', defaultValue: '2001', description: "SAP NW SAPADM UID") 
+      string(name: 'sap_sapsys_gid', defaultValue: '2626', description: "SAPSYS GID")     
+    }
+
+    stages {
+        stage('Prepare TF variable file') {
+            steps {
+                script {
+                    def paramsMap = [:] 
+
+                    params.each { key, value ->
+                        switch (key) {
+                            case 'sap_nw_aas_instance_name':
+                            case 'sap_nw_aas_instance_ip':
+                            case 'sap_nw_aas_alias_ip':
+                                // Convert comma-separated string to list
+                                try {
+                                    paramsMap[key] = value.split(',') as List
+                                } catch (Exception e) {
+                                    error("Failed to parse ${key} as a list: ${value}")
+                                }
+                                break
+                            case 'sap_nw_aas_labels':
+                                try {
+                                    paramsMap[key] = readJSON(text: value)
+                                } catch (Exception e) {
+                                    error("Invalid JSON format for sap_nw_aas_labels: ${value}")
+                                }
+                                break
+                            default:
+                                paramsMap[key] = value
+                        }
+                    }
+
+                    // Add environment variables
+                    paramsMap['project_id'] = env.PROJECT_ID 
+                    paramsMap['subnetwork_project'] = env.SUBNETWORK_PROJECT
+                    paramsMap['source_image_name'] = env.SOURCE_IMAGE_NAME
+                    paramsMap['source_image_project'] = env.SOURCE_IMAGE_PROJECT
+                    paramsMap['gce_ssh_pub_key_file'] = env.GCE_SSH_PUB_KEY_FILE
+                    paramsMap['gce_ssh_user'] = env.GCE_SSH_USER
+                    paramsMap['sap_nw_aas_use_public_ip'] = env.SAP_NW_AAS_USE_PUBLIC_IP
+                    paramsMap['sap_nw_aas_boot_disk_size'] = env.SAP_NW_AAS_BOOT_DISK_SIZE
+                    paramsMap['sap_nw_aas_boot_disk_type'] = env.SAP_NW_AAS_BOOT_DISK_TYPE
+                    paramsMap['sap_nw_aas_autodelete_boot_disk'] = env.SAP_NW_AAS_AUTODELETE_BOOT_DISK ? env.SAP_NW_AAS_AUTODELETE_BOOT_DISK : true
+                    paramsMap['sap_nw_aas_usrsap_disk_size'] = env.SAP_NW_AAS_USRSAP_DISK_SIZE
+                    paramsMap['sap_nw_aas_swap_disk_size'] = env.SAP_NW_AAS_SWAP_DISK_SIZE
+                    paramsMap['sap_nw_aas_usrsap_disk_type'] = env.SAP_NW_AAS_USRSAP_DISK_TYPE
+                    paramsMap['sap_nw_aas_swap_disk_type'] = env.SAP_NW_AAS_SWAP_DISK_TYPE
+                    paramsMap['sap_nw_install_files_bucket'] = env.SAP_NW_INSTALL_FILES_BUCKET
+                    paramsMap['sap_nw_aas_service_account_email'] = env.SAP_NW_AAS_SERVICE_ACCOUNT_EMAIL 
+                    paramsMap['sap_nw_aas_network_tags'] = [env.SAP_NW_AAS_NETWORK_TAGS]
+                    paramsMap['sap_nw_aas_pd_kms_key'] = env.SAP_NW_AAS_PD_KMS_KEY
+                    paramsMap['nw_script_path'] = ''
+
+                    writeFile file: "${env.TF_FOLDER}/terraform.tfvars.json", text: JsonOutput.toJson(paramsMap)
+                }
+            }
+        }
+
+        stage('Terraform Plan and Approve') {
+            steps {
+                script {
+                    def bucketId = "${env.TERRAFORM_BUCKET_ID}"
+                    def prefixId = "${env.TERRAFORM_PREFIX_ID}"
+
+                    if (!bucketId || !prefixId) {
+                        error "Bucket and prefix ID not found for ${TF_FOLDER}"
+                    }
+
+                    echo "Executing Terraform init and plan in ${TF_FOLDER} with backend bucket=${bucketId}, prefix=${prefixId}"
+
+                    withCredentials([file(credentialsId: 'gcp-key-new', variable: 'GOOGLE_APPLICATION_CREDENTIALS')]) {
+                    dir("${TF_FOLDER}") {
+                                        sh "cat terraform.tfvars.json"
+
+                                        sh """
+                                            terraform init \\
+                                                -backend-config="bucket=${bucketId}" \\
+                                                -backend-config="prefix=${prefixId}" \\
+                                                -reconfigure
+                                        """
+
+                                        // Capture Terraform plan output into a file
+                                        sh "terraform plan -var-file=terraform.tfvars.json -compact-warnings | tee terraform-plan.log"
+                                        
+                        }
+                    
+                    def approverEmail = 'santoshisarvagnya@gmail.com'
+                    def subject = "Approval Required: Terraform Execution"
+                    def logFilePath = "${TF_FOLDER}/terraform-plan.log"
+
+                    // Read Terraform Plan Output and truncate if too long
+                    def planOutput = readFile(logFilePath)
+
+                    def body = """
+                        <p>Terraform execution is requested. Please review and approve or reject.</p>
+                        
+                        <p><b>Job:</b> ${env.JOB_NAME}<br>
+                        <b>Build Number:</b> ${env.BUILD_NUMBER}<br>
+                        <b>URL:</b> <a href="${env.BUILD_URL}">${env.BUILD_URL}</a></p>
+
+                        <p><b>Terraform Plan Output (truncated):</b></p>
+                        <pre>${planOutput}</pre>
+
+                        <p><b>Approval Options:</b></p>
+                        <ul>
+                            <li><a href="${env.BUILD_URL}/input">✅ Approve Job</a></li>
+                            <li><a href="${env.BUILD_URL}/abort">❌ Reject Job</a></li>
+                        </ul>
+                    """
+
+                    mail(
+                        to: approverEmail,
+                        subject: subject,
+                        body: body,
+                        mimeType: 'text/html'
+                    )
+                    }
+
+
+                    input message: "Do you want to proceed with Terraform Configuration Deployment?", ok: "Proceed"
+
+                    withCredentials([file(credentialsId: 'gcp-key-new', variable: 'GOOGLE_APPLICATION_CREDENTIALS')]) {
+                        dir("${TF_FOLDER}") {
+                            sh "terraform apply -auto-approve -var-file=\"terraform.tfvars.json\""
+                        }
+                    }
+
+                    sh """
+                        echo "Fetching Terraform state file from GCS..."
+                        gsutil cat gs://${env.TERRAFORM_BUCKET_ID}/${env.TERRAFORM_PREFIX_ID}/default.tfstate
+                    """
+                }
+            }
+        }
+
+
+        stage('Prepare Host Inventory') {
+            steps {
+                script {
+                    dir("${TF_FOLDER}") {
+                            echo "Extracting Terraform output for ${TF_FOLDER}"
+
+                            // Get Terraform JSON output
+                            def terraformOutput = sh(script: 'terraform output -json', returnStdout: true).trim()
+
+                            // Debug raw output
+                            echo "Raw Terraform Output: ${terraformOutput}"
+
+                            def jsonOutput = readJSON(text: terraformOutput)
+
+                            // Debug parsed output
+                            echo "Parsed JSON Output: ${jsonOutput}"
+
+                            // Extract inventory
+                            def inventoryList = jsonOutput.inventory?.value ?: []
+                            def instanceNames = jsonOutput.nw_instance_name?.value ?: ["unknown-nw-instance"]
+
+                            if (inventoryList.isEmpty() || instanceNames.isEmpty()) {
+                                error "Error: 'inventory' or 'nw_instance_name' is empty"
+                            }
+
+                            // Extract group and host details
+                            def groupName = inventoryList[0]?.groups[0] ?: "default-group"
+                            def hosts = inventoryList.collectMany { it.host } ?: []
+
+                            // Build YAML content
+                            def yamlContent = "all:\n  children:\n    ${groupName}:\n     hosts:\n"
+
+                            hosts.eachWithIndex { host, index ->
+                                def instanceName = index < instanceNames.size() ? instanceNames[index].split("/")[-1] : "unknown-instance"
+                                yamlContent += "       ${host}:\n         instance_name: ${instanceName}\n"
+                            }
+
+                            def yamlFilePath = "${env.WORKSPACE}/${env.ANSIBLE_FOLDER}/inventory.yml"
+                            writeFile file: yamlFilePath, text: yamlContent
+
+                            echo "Inventory YAML file created at ${yamlFilePath}"
+
+                            // Print output
+                            dir("${env.WORKSPACE}/${env.ANSIBLE_FOLDER}") {
+                            sh "cat inventory.yml"
+                        }
+                    }
+                }
+            }
+        }
+
+        stage('Prepare Ansible Input Vars File') {
+            steps {
+                script {
+
+                    input message: "Do you want to proceed with Ansible Execution?", ok: "Proceed"
+
+                    def yamlContent = """
+                        sap_nw_aas_zone: ${params.sap_nw_aas_zone}
+                        sap_project_id: ${env.PROJECT_ID}
+                        sap_ssh_user: ${env.GCE_SSH_USER}
+                        sap_host_fqdn: ${env.SAP_HOST_FQDN}
+                        sap_hana_vip: ${params.sap_hana_virtual_ip}
+                        sap_hana_virtual_host: ${params.sap_hana_virtual_host}
+                        sap_nw_aas_virtual_host: ${params.sap_nw_aas_virtual_host}
+                        sap_nw_ascs_alias_ip: ${params.sap_nw_ascs_alias_ip}
+                        sap_nw_pas_alias_ip: ${params.sap_nw_pas_alias_ip}
+                        sap_nw_ascs_virtual_host: ${params.sap_nw_ascs_virtual_host}
+                        sap_nw_pas_virtual_host: ${params.sap_nw_pas_virtual_host}
+                        sap_nw_install_files_bucket: ${env.SAP_NW_INSTALL_FILES_BUCKET}
+                        sap_nw_product_and_version: '${env.SAP_NW_PRODUCT_AND_VERSION}' 
+                        sap_hana_gsm_secret_id: ${env.SAP_HANA_GSM_SECRET_ID}
+                        sap_sapinst_nw: ${env.SAP_SAPINST_NW}
+                        sap_hana_sid: ${params.sap_hana_sid}
+                        sap_nw_sid: ${params.sap_nw_sid}
+                        sap_nw_daaadm_uid: "${params.sap_nw_daaadm_uid}"
+                        sap_nw_sidadm_uid: "${params.sap_nw_sidadm_uid}"
+                        sap_nw_sapadm_uid: "${params.sap_nw_sapadm_uid}"
+                        sap_sapsys_gid: "${params.sap_sapsys_gid}"
+                        sap_hana_backint_install: ${env.SAP_HANA_BACKINT_INSTALL}
+                        sapmnt_nfs_server_path: ${params.sapmnt_nfs_server_path}
+                        sap_hana_instance_number: "${params.sap_hana_instance_number}"
+                        sap_nw_ascs_instance_number: "${params.sap_nw_ascs_instance_number}"
+                        sap_nw_pas_instance_number: "${params.sap_nw_pas_instance_number}"
+                        sap_nw_aas_alias_ip: ["${params.sap_nw_aas_alias_ip}"]
+                        sap_tf_state_bucket: ${env.TERRAFORM_BUCKET_ID}
+                        sap_hana_password: '${env.SAP_HANA_PASSWORD}'
+                        sap_nw_password: '${env.SAP_NW_PASSWORD}'
+
+                    """.stripIndent()
+                    
+                    sh "mkdir -p ${env.ANSIBLE_FOLDER}/vars"
+
+                    writeFile file: "${env.ANSIBLE_FOLDER}/vars/deploy-vars.yml", text: yamlContent
+
+                    dir("${env.ANSIBLE_FOLDER}/vars") {
+                        sh "cat deploy-vars.yml"
+                    } 
+                }
+            }
+        }
+
+        stage('Wait for SSH Connection to All Hosts') {
+    steps {
+        script {
+            def connectedHosts = [] as Set  // Use a Set to avoid duplicates
+            def retryCount = 0
+            def maxRetries = 5  // Maximum retry attempts
+            def retryDelay = 40 // Delay between retries (seconds)
+
+            // Read the inventory.yml file as YAML
+            def inventoryData = readYaml file: "${ANSIBLE_FOLDER}/inventory.yml"
+            def inventoryHosts = []
+
+            // Navigate through YAML to extract host IPs
+            if (inventoryData?.all?.children?.nw?.hosts) {
+                inventoryHosts = inventoryData.all.children.nw.hosts.keySet().toList()
+            } else {
+                error "No hosts found in inventory.yml!"
+            }
+
+            echo "Hosts from inventory: ${inventoryHosts}"
+
+            def sshUser = env.GCE_SSH_USER
+            echo "Using SSH User: ${sshUser}"
+
+            while (connectedHosts.size() < inventoryHosts.size() && retryCount < maxRetries) {
+                def remainingHosts = inventoryHosts - connectedHosts  // Hosts that still need checking
+
+                for (host in remainingHosts) {
+                    echo "Attempting SSH connection to ${sshUser}@${host}, try #${retryCount + 1}"
+                    def result = sh(script: "ssh -o StrictHostKeyChecking=no -o ConnectTimeout=10 ${sshUser}@${host} 'exit'", returnStatus: true)
+
+                    if (result == 0) {
+                        echo "SSH connection successful for ${host}"
+                        connectedHosts.add(host)
+                    } else {
+                        echo "SSH connection failed for ${host}. Moving to the next host..."
+                    }
+                }
+
+                retryCount++
+                if (connectedHosts.size() < inventoryHosts.size() && retryCount < maxRetries) {
+                    sleep(retryDelay)
+                }
+            }
+
+            // Fail if any hosts remain unreachable
+            if (connectedHosts.size() < inventoryHosts.size()) {
+                error "Failed to connect to some hosts after ${maxRetries} attempts: ${(inventoryHosts - connectedHosts)}"
+            } else {
+                echo "All hosts are reachable. Proceeding with Ansible playbook execution."
+            }
+        }
+    }
+}
+        
+        stage("Execute Ansible"){
+            steps {
+                script {
+                    // Send mail for ansible execution
+                    def teamEmail = 'santoshisarvagnya@gmail.com'
+                    def subject_exe = "Initiation of NetWeaver-Standard-AAS-Lite deployment in DEV environment"
+
+                    def body_exe = """
+                        <html>
+                        <body>
+                            <p>Dear Team,</p>
+                            <p>The deployment of <strong>NetWeaver-Standard-AAS-Lite</strong> system in the <strong>Development</strong> environment has been initiated from the Jenkins UI. Please find the build information below:</p>
+
+                            <ul>
+                                <li><strong>Job:</strong> ${env.JOB_NAME}</li>
+                                <li><strong>Build Number:</strong> ${env.BUILD_NUMBER}</li>
+                                <li><strong>Build URL:</strong> <a href="${env.BUILD_URL}">${env.BUILD_URL}</a></li>
+                            </ul>
+
+                            <p>Regards,</p>
+                        </body>
+                        </html>
+                    """
+
+                    mail(
+                        to: teamEmail,
+                        subject: subject_exe,
+                        body: body_exe,
+                        mimeType: 'text/html'
+                    )
+                    dir("${ANSIBLE_FOLDER}") {
+
+                            ansiblePlaybook(
+                                disableHostKeyChecking: true,
+                                installation: 'Ansible',
+                                inventory: "inventory.yml",
+                                playbook: "playbook.yml",
+                                extras: "-e @vars/${deployvars_filename}",
+                                extraVars: [
+                                    "ansible_ssh_private_key_file": ANSIBLE_PRIVATE_KEY,
+                                    "ansible_user": SSH_USER
+                                ]
+                            )
+                    }
+
+
+                    def yamlContent = """
+                        sap_project_id: ${env.PROJECT_ID}
+                        sap_ssh_user: ${env.GCE_SSH_USER}
+                        sap_host_fqdn: ${env.SAP_HOST_FQDN}
+                        sap_hana_vip: ${params.sap_hana_virtual_ip}
+                        sap_hana_virtual_host: ${params.sap_hana_virtual_host}
+                        sap_nw_aas_virtual_host: ${params.sap_nw_aas_virtual_host}
+                        sap_nw_ascs_alias_ip: ${params.sap_nw_ascs_alias_ip}
+                        sap_nw_pas_alias_ip: ${params.sap_nw_pas_alias_ip}
+                        sap_nw_ascs_virtual_host: ${params.sap_nw_ascs_virtual_host}
+                        sap_nw_pas_virtual_host: ${params.sap_nw_pas_virtual_host}
+                        sap_nw_install_files_bucket: ${env.SAP_NW_INSTALL_FILES_BUCKET}
+                        sap_nw_product_and_version: ${env.SAP_NW_PRODUCT_AND_VERSION} 
+                        sap_sapinst_nw: ${env.SAP_SAPINST_NW}
+                        sap_hana_sid: ${params.sap_hana_sid}
+                        sap_nw_sid: ${params.sap_nw_sid}
+                        sap_nw_daaadm_uid: ${params.sap_nw_daaadm_uid}
+                        sap_nw_sidadm_uid: ${params.sap_nw_sidadm_uid}
+                        sap_nw_sapadm_uid: ${params.sap_nw_sapadm_uid}
+                        sap_sapsys_gid: ${params.sap_sapsys_gid}
+                        sap_hana_backint_install: ${env.SAP_HANA_BACKINT_INSTALL}
+                        sapmnt_nfs_server_path: ${params.sapmnt_nfs_server_path}
+                        sap_hana_instance_number: "${params.sap_hana_instance_number}"
+                        sap_nw_ascs_instance_number: "${params.sap_nw_ascs_instance_number}"
+                        sap_nw_pas_instance_number: "${params.sap_nw_pas_instance_number}"
+                    """.stripIndent()
+
+                        writeFile file: "${env.ANSIBLE_FOLDER}/vars/deploy-vars.yml", text: yamlContent
+                    // Send mail for successful deployment
+                    def subject_cmp = "NetWeaver-Standard-AAS-Lite Deployment Successfully Completed in DEV environment"
+
+                    def body_cmp = """
+                        <html>
+                        <body>
+                            <p>Dear Team,</p>
+
+                            <p>The deployment of <strong>NetWeaver-Standard-AAS-Lite</strong> system in the <strong>Development</strong> environment has been successfully completed. Below are the details of the newly created instances:</p>
+
+                            <table cellspacing="0" cellpadding="5" border="1" style="border-collapse: collapse;">
+                                <tr><th align="left">SAP NW AAS Instance Name</th><td>${params.sap_nw_aas_instance_name}</td></tr>
+                                <tr><th align="left">SAP NW AAS Instance IP</th><td>${params.sap_nw_aas_instance_ip}</td></tr>
+                                <tr><th align="left">Region</th><td>${params.sap_nw_aas_region}</td></tr>
+                                <tr><th align="left">Zone</th><td>${params.sap_nw_aas_zone}</td></tr>
+                            </table>
+
+                            <p><strong>Build Information:</strong></p>
+                            <ul>
+                                <li><strong>Job:</strong> ${env.JOB_NAME}</li>
+                                <li><strong>Build Number:</strong> ${env.BUILD_NUMBER}</li>
+                                <li><strong>Build URL:</strong> <a href="${env.BUILD_URL}">${env.BUILD_URL}</a></li>
+                            </ul>
+
+                            <p>Best regards</p>
+                        </body>
+                        </html>
+                    """
+
+                    mail(
+                        to: teamEmail,
+                        subject: subject_cmp,
+                        body: body_cmp,
+                        mimeType: 'text/html'
+                    )
+                }
+            }
+        }
+
+        stage('Add the files to Git Repository') {
+            steps {
+                script {
+                    withCredentials([string(credentialsId: 'git-key', variable: 'GIT_SECRET')]) {
+                        def timestamp = new Date().format("yyyyMMddHHmmss")
+                        def git_folder_name = "${params.sap_nw_sid}_${timestamp}"
+                        def target_folder = "${env.GIT_FOLDER}/${git_folder_name}"
+                        def tfvarsFile = "${env.TF_FOLDER}/terraform.tfvars.json"
+                        def inventoryFile = "${env.ANSIBLE_FOLDER}/inventory.yml"
+                        def deployvarsFile = "${env.ANSIBLE_FOLDER}/vars/deploy-vars.yml"
+
+                        sh """
+                            mkdir -p ${target_folder}
+                            cp ${tfvarsFile} ${target_folder}/terraform.tfvars.json
+                            cp ${inventoryFile} ${target_folder}/inventory.yml
+                            cp ${deployvarsFile} ${target_folder}/deploy-vars.yml
+
+                            git config user.name "${GIT_USER_NAME}"
+                            git config user.email "${GIT_USER_EMAIL}"
+                            
+                            git add ${target_folder}
+                            git commit -m "Add deployment files for ${git_folder_name}" || echo 'No changes to commit'
+                            git push https://${GIT_USER_NAME}:${GIT_SECRET}@${GIT_REPO_URL} HEAD:nw-aas-poc
+                        """
+                    }
+                }
+            }
+        }
+    }
+
+
+        post {
+                // Clean after build
+                always {
+                    cleanWs(cleanWhenNotBuilt: false,
+                            deleteDirs: true,
+                            disableDeferredWipeout: true,
+                            notFailBuild: true)
+                }
+        }
+}
