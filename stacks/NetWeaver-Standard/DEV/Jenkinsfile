@@ -19,10 +19,8 @@ pipeline {
         SSH_USER = "harshapriyacr"
         deployvars_filename = "deploy-vars.yml"
 
-        BUCKET_ID_FILES = "webdispatcher_standalone_cicd"
         TERRAFORM_BUCKET_ID = "bucket-cicd-jenkins"
         TERRAFORM_PREFIX_ID = "sajenkinsApr15"
-        FOLDER_NAME = "SAR_NetweaverStandard_20250327095252"
 
         PROJECT_ID = "sap-iac-test"
         SUBNETWORK_PROJECT = "sap-iac-test"
@@ -351,8 +349,6 @@ pipeline {
                         sap_nw_pas_virtual_host: ${params.sap_nw_instance_name}
                         sap_hana_sid: ${params.sap_hana_sid}
                         sap_nw_sid:  ${params.sap_nw_sid}
-                        sap_hana_password: ${env.SAP_HANA_PASSWORD}
-                        sap_nw_password: ${env.SAP_NW_PASSWORD}
                         sapmnt_nfs_server_path: ${params.sapmnt_nfs_server_path}
                         sap_nw_install_files_bucket: ${env.SAP_NW_INSTALL_FILES_BUCKET}
                         sap_nw_product_and_version: ${env.SAP_NW_PRODUCT_AND_VERSION} 
@@ -362,6 +358,8 @@ pipeline {
                         sap_nw_ascs_instance_number: "${params.sap_nw_ascs_instance_number}"
                         sap_nw_pas_instance_number: "${params.sap_nw_pas_instance_number}"
                         sap_hana_system_uid: "${params.sap_hana_system_uid}"
+                        sap_hana_password: ${env.SAP_HANA_PASSWORD}
+                        sap_nw_password: ${env.SAP_NW_PASSWORD}
 
                     """.stripIndent()
                     
@@ -561,7 +559,6 @@ pipeline {
                             git config user.name "${GIT_USER_NAME}"
                             git config user.email "${GIT_USER_EMAIL}"
                             
-                            git pull https://${GIT_USER_NAME}:${GIT_SECRET}@${GIT_REPO_URL} HEAD:main
                             git add ${target_folder}
                             git commit -m "Add deployment files for ${git_folder_name}" || echo 'No changes to commit'
                             git push https://${GIT_USER_NAME}:${GIT_SECRET}@${GIT_REPO_URL} HEAD:main
